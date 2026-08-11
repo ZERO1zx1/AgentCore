@@ -19,6 +19,7 @@ class WorkUnit:
     optional: bool = False
     status: str = "pending"  # pending, completed, skipped, failed
     input_refs: List[str] = field(default_factory=list)
+    source_refs: List[str] = field(default_factory=list)
     context_refs: List[str] = field(default_factory=list)
     output_refs: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -35,6 +36,7 @@ class WorkUnit:
             "optional": self.optional,
             "status": self.status,
             "input_refs": list(self.input_refs),
+            "source_refs": list(self.source_refs),
             "context_refs": list(self.context_refs),
             "output_refs": list(self.output_refs),
             "metadata": self.metadata,
@@ -53,6 +55,7 @@ class WorkUnit:
             optional=data.get("optional", False),
             status=data.get("status", "pending"),
             input_refs=data.get("input_refs", []),
+            source_refs=data.get("source_refs", []),
             context_refs=data.get("context_refs", []),
             output_refs=data.get("output_refs", []),
             metadata=data.get("metadata", {}),

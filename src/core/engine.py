@@ -83,6 +83,7 @@ class ManusMiniEngine:
 
         # Step 3: Rule-based planning with context
         work_units = Planner.plan_task(task_input.prompt, task_input.files, context)
+        self._assign_source_refs(work_units, context)
 
         self.current_manifest = manifest
         self.current_context = context
@@ -133,13 +134,13 @@ class ManusMiniEngine:
                 self.current_context,
             )
 
-        # Source fingerprint invalidation
-        if self._check_source_fingerprints():
-            # Sources unchanged — keep completed work
-            pass
-        else:
-            # Sources changed — invalidate affected work
-            self._invalidate_changed_sources()
+        # Restore usage history so resume continues accurately
+        stored_usage = getattr(manifest, "usage_history", None)
+        if stored_usage:
+            self.usage_history = list(stored_usage)
+
+        # Granular source fingerprint invalidation (only affected units)
+        self._invalidate_changed_sources()
 
         # Recalculate remaining budget for resumed task (use provided budget if higher)
         if task_input.budget > manifest.budget_info.get("initial", 0):
@@ -155,6 +156,31 @@ class ManusMiniEngine:
         if self.current_context is not None:
             manifest.task_context_dict = self.current_context.to_dict()
             manifest.work_units_data = [u.to_dict() for u in self.work_units]
+        # Persist usage history so resume restores it
+        manifest.usage_history = list(self.usage_history)
+
+    @staticmethod
+    def _assign_source_refs(work_units: List[WorkUnit], context: TaskContext):
+        """Assign source_refs to each WorkUnit based on its context_refs."""
+        source_by_ref = {}
+        for src_path, src_type in context.source_types.items():
+            key = {
+                "repository": "repository_context",
+                "pdf": "document_context",
+                "text": "document_context",
+                "structured": "structured_context",
+            }.get(src_type)
+            if key:
+                source_by_ref.setdefault(key, []).append(src_path)
+
+        for unit in work_units:
+            refs = []
+            for ref in unit.context_refs:
+                refs.extend(source_by_ref.get(ref, []))
+            # Also add all input sources by default (best-effort coverage)
+            if not refs:
+                refs = list(context.input_sources)
+            unit.source_refs = sorted(set(refs))
 
     @staticmethod
     def _fingerprint_context(context: TaskContext) -> str:
@@ -162,43 +188,91 @@ class ManusMiniEngine:
         sources = sorted(context.source_fingerprints.items())
         return json.dumps(sources, sort_keys=True)
 
-    def _check_source_fingerprints(self) -> bool:
-        """Re-check source fingerprints. Returns True if unchanged."""
-        if not self.current_context or not self.current_manifest:
-            return False
+    def _compute_source_fingerprints(self) -> Dict[str, str]:
+        """Recompute current fingerprints for all sources."""
+        if not self.current_context:
+            return {}
         import hashlib
+        result = {}
         for src_path in self.current_context.input_sources:
             src_type = self.current_context.source_types.get(src_path, "")
-            old_fp = self.current_context.source_fingerprints.get(src_path, "")
-            if not old_fp:
-                continue
             if src_type == "repository":
-                new_fp = RepositoryProcessor.fingerprint_repository(src_path)
+                try:
+                    result[src_path] = RepositoryProcessor.fingerprint_repository(src_path)
+                except Exception:
+                    result[src_path] = ""
             elif os.path.isfile(src_path):
                 try:
                     with open(src_path, "rb") as f:
-                        new_fp = hashlib.sha256(f.read()).hexdigest()
+                        result[src_path] = hashlib.sha256(f.read()).hexdigest()
                 except Exception:
-                    new_fp = ""
+                    result[src_path] = ""
             else:
-                continue
+                result[src_path] = self.current_context.source_fingerprints.get(src_path, "")
+        return result
+
+    def _find_changed_sources(self) -> List[str]:
+        """Return source paths whose fingerprints changed since planning."""
+        if not self.current_context:
+            return []
+        current = self._compute_source_fingerprints()
+        old = self.current_context.source_fingerprints
+        changed = []
+        for src_path in self.current_context.input_sources:
+            old_fp = old.get(src_path, "")
+            new_fp = current.get(src_path, "")
             if old_fp and new_fp and old_fp != new_fp:
-                return False
-        return True
+                changed.append(src_path)
+            elif not old_fp and new_fp:
+                # New source appeared
+                changed.append(src_path)
+        return changed
 
     def _invalidate_changed_sources(self):
-        """Mark dependent WorkUnits pending again when sources changed."""
-        if not self.current_manifest:
+        """Granular, dependency-aware invalidation.
+
+        Only units whose source_refs intersect changed sources are invalidated,
+        plus units that transitively depend on an invalidated unit.
+        Unrelated completed units remain completed.
+        """
+        if not self.current_context or not self.current_manifest:
             return
-        # Simple approach: reset all non-completed units to pending
-        # and mark completed units that depend on changed sources as pending
+
+        changed = set(self._find_changed_sources())
+        if not changed:
+            return
+
+        # Update stored fingerprints to current values (so no repeated invalidation)
+        current = self._compute_source_fingerprints()
+        self.current_context.source_fingerprints.update(current)
+
+        # 1. Directly affected units: completed and referencing a changed source
+        invalidated = set()
         for unit in self.work_units:
-            if unit.status == "completed":
-                # Re-validate: if source changed, re-run
+            if unit.status == "completed" and unit.source_refs:
+                if changed & set(unit.source_refs):
+                    invalidated.add(unit.id)
+
+        # 2. Transitive: any pending/completed unit depending on an invalidated unit
+        changed = True
+        while changed:
+            changed = False
+            for unit in self.work_units:
+                if unit.id in invalidated:
+                    continue
+                if any(dep in invalidated for dep in unit.dependencies):
+                    invalidated.add(unit.id)
+                    changed = True
+
+        # 3. Apply invalidation
+        for unit in self.work_units:
+            if unit.id in invalidated and unit.status == "completed":
                 unit.status = "pending"
                 if unit.id in self.current_manifest.completed_work:
                     self.current_manifest.completed_work.remove(unit.id)
         self.current_manifest.progress["completed_units"] = len(self.current_manifest.completed_work)
+        if invalidated:
+            self.current_manifest.reason = "SOURCE_CHANGED"
 
     def run_next_unit(self) -> bool:
         if not self.budget_manager or not self.current_manifest:

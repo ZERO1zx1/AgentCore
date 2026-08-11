@@ -173,6 +173,130 @@ class TestResumeInvalidation(unittest.TestCase):
         # Completed work should be invalidated (reduced or reset)
         self.assertLessEqual(len(engine2.current_manifest.completed_work), completed_before)
 
+    # Test 5b: Granular invalidation — only affected units rerun
+    def test_granular_source_invalidation(self):
+        """Source A changes -> A-dependent units rerun; B-dependent completed unit does NOT rerun."""
+        src_a = os.path.join(self.test_dir, "input_a.md")
+        src_b = os.path.join(self.test_dir, "input_b.md")
+        self._create_text(src_a, "VERSION_A")
+        self._create_text(src_b, "VERSION_B")
+
+        from src.core.planner import WorkUnit
+
+        # Custom plan: unit_a depends on A, unit_b depends on B, unit_val depends on unit_a
+        unit_a = WorkUnit(
+            id="unit_a", type="analyze", instruction="Analyze A",
+            required_capabilities=["text"], source_refs=[src_a],
+        )
+        unit_b = WorkUnit(
+            id="unit_b", type="analyze", instruction="Analyze B",
+            required_capabilities=["text"], source_refs=[src_b],
+        )
+        unit_val = WorkUnit(
+            id="unit_val", type="test", instruction="Validate A result",
+            required_capabilities=["deterministic"], dependencies=["unit_a"],
+        )
+
+        executor1 = FakeExecutor()
+        engine1 = ManusMiniEngine(
+            checkpoint_dir=self.checkpoint_dir,
+            executor=executor1,
+            artifact_manager=self.artifact_man,
+        )
+        task = TaskInput(prompt="Analyze", task_id="granular_test", files=[src_a, src_b], budget=10.0)
+        engine1.initialize_task(task)
+        engine1.work_units = [unit_a, unit_b, unit_val]
+        engine1._persist_context_to_manifest(engine1.current_manifest)
+        engine1.checkpoint_manager.save_checkpoint(engine1.current_manifest)
+
+        # Run all three units
+        engine1.run_to_completion()
+        self.assertIn("unit_a", engine1.current_manifest.completed_work)
+        self.assertIn("unit_b", engine1.current_manifest.completed_work)
+        self.assertIn("unit_val", engine1.current_manifest.completed_work)
+
+        # Modify source A only
+        self._create_text(src_a, "VERSION_A2")
+
+        # Resume with fresh executor
+        executor2 = FakeExecutor()
+        engine2 = ManusMiniEngine(
+            checkpoint_dir=self.checkpoint_dir,
+            executor=executor2,
+            artifact_manager=self.artifact_man,
+        )
+        resume = TaskInput(prompt="Analyze", task_id="granular_test", resume_task_id="granular_test", budget=10.0)
+        engine2.initialize_task(resume)
+
+        # unit_a and unit_val should be invalidated (pending)
+        unit_a_restored = next(u for u in engine2.work_units if u.id == "unit_a")
+        unit_b_restored = next(u for u in engine2.work_units if u.id == "unit_b")
+        unit_val_restored = next(u for u in engine2.work_units if u.id == "unit_val")
+
+        self.assertEqual(unit_a_restored.status, "pending")
+        self.assertEqual(unit_val_restored.status, "pending")
+        # unit_b must remain completed (unrelated)
+        self.assertEqual(unit_b_restored.status, "completed")
+
+        # Run to completion — only A-dependent units rerun
+        engine2.run_to_completion()
+
+        # unit_b must NOT have been executed again
+        self.assertIn("unit_b", engine2.current_manifest.completed_work)
+        # unit_a and unit_val rerun
+        self.assertIn("unit_a", engine2.current_manifest.completed_work)
+        self.assertIn("unit_val", engine2.current_manifest.completed_work)
+
+        # Executor2 should have executed exactly 2 units (unit_a, unit_val), not unit_b
+        self.assertEqual(executor2.execution_count, 2)
+
+    # Test 6b: Usage history persists across resume
+    def test_usage_history_persists_across_resume(self):
+        """Execution/model usage recorded in manifest is restored on resume."""
+        src = os.path.join(self.test_dir, "usage.md")
+        self._create_text(src, "USAGE_CONTENT")
+
+        engine1 = ManusMiniEngine(
+            checkpoint_dir=self.checkpoint_dir,
+            executor=FakeExecutor(),
+            artifact_manager=self.artifact_man,
+        )
+        task = TaskInput(prompt="Analyze", task_id="usage_resume", files=[src], budget=10.0)
+        engine1.initialize_task(task)
+        engine1.run_next_unit()
+
+        # Verify usage was persisted to manifest
+        self.assertGreater(len(engine1.current_manifest.usage_history), 0)
+        rec = engine1.current_manifest.usage_history[0]
+        self.assertIn("work_unit_id", rec)
+        self.assertIn("provider", rec)
+        self.assertIn("model_id", rec)
+        self.assertIn("estimated_cost", rec)
+        self.assertIn("charged_cost", rec)
+        self.assertIn("actual_cost", rec)
+        self.assertIn("cost_source", rec)
+        self.assertIn("input_tokens", rec)
+        self.assertIn("output_tokens", rec)
+        self.assertIn("total_tokens", rec)
+        self.assertIn("provider_request_id", rec)
+        self.assertIn("success", rec)
+
+        # Resume in a new engine
+        engine2 = ManusMiniEngine(
+            checkpoint_dir=self.checkpoint_dir,
+            executor=FakeExecutor(),
+            artifact_manager=self.artifact_man,
+        )
+        resume = TaskInput(prompt="Analyze", task_id="usage_resume", resume_task_id="usage_resume", budget=10.0)
+        engine2.initialize_task(resume)
+
+        # Verify usage history restored into engine memory
+        self.assertEqual(len(engine2.usage_history), len(engine1.usage_history))
+        self.assertEqual(
+            engine2.usage_history[0]["work_unit_id"],
+            engine1.usage_history[0]["work_unit_id"],
+        )
+
     # Test 6: Unchanged resume does NOT re-execute
     def test_unchanged_resume_no_reexecution(self):
         src = os.path.join(self.test_dir, "stable.md")
