@@ -1,11 +1,11 @@
-"""Behavioral Tests for Real Context Delivery and Cost Accounting in Manus Mini v2."""
+"""Behavioral Tests for Real Context Delivery and Cost Accounting in AgentCore."""
 import unittest
 import os
 import shutil
 import json
 import tempfile
 from decimal import Decimal
-from src.core.engine import ManusMiniEngine
+from src.core.engine import AgentCoreEngine
 from src.core.task import TaskInput
 from src.core.modes import ExecutionMode
 from src.core.executor import FakeExecutor
@@ -30,10 +30,10 @@ class _ActualCostExecutor(FakeExecutor):
 
 class TestContextDelivery(unittest.TestCase):
     def setUp(self):
-        self.test_dir = tempfile.mkdtemp(prefix="manus_ctx_")
+        self.test_dir = tempfile.mkdtemp(prefix="agentcore_ctx_")
         self.checkpoint_dir = os.path.join(self.test_dir, "checkpoints")
         self.executor = FakeExecutor()
-        self.engine = ManusMiniEngine(
+        self.engine = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=self.executor,
             artifact_manager=ArtifactManager(base_dir=os.path.join(self.test_dir, "artifacts")),
@@ -74,7 +74,7 @@ class TestContextDelivery(unittest.TestCase):
         c.showPage()
         c.save()
 
-        engine = ManusMiniEngine(
+        engine = AgentCoreEngine(
             checkpoint_dir=os.path.join(self.test_dir, "checkpoints_pdf"),
             executor=FakeExecutor(),
             artifact_manager=ArtifactManager(base_dir=os.path.join(self.test_dir, "artifacts_pdf")),
@@ -130,7 +130,7 @@ class TestContextDelivery(unittest.TestCase):
 
 class TestResumeInvalidation(unittest.TestCase):
     def setUp(self):
-        self.test_dir = tempfile.mkdtemp(prefix="manus_resume_")
+        self.test_dir = tempfile.mkdtemp(prefix="agentcore_resume_")
         self.checkpoint_dir = os.path.join(self.test_dir, "checkpoints")
         self.artifact_man = ArtifactManager(base_dir=os.path.join(self.test_dir, "artifacts"))
 
@@ -147,7 +147,7 @@ class TestResumeInvalidation(unittest.TestCase):
         src = os.path.join(self.test_dir, "input.md")
         self._create_text(src, "VERSION_A")
 
-        engine1 = ManusMiniEngine(
+        engine1 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=FakeExecutor(),
             artifact_manager=self.artifact_man,
@@ -162,7 +162,7 @@ class TestResumeInvalidation(unittest.TestCase):
         self._create_text(src, "VERSION_B")
 
         # Resume
-        engine2 = ManusMiniEngine(
+        engine2 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=FakeExecutor(),
             artifact_manager=self.artifact_man,
@@ -198,7 +198,7 @@ class TestResumeInvalidation(unittest.TestCase):
         )
 
         executor1 = FakeExecutor()
-        engine1 = ManusMiniEngine(
+        engine1 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=executor1,
             artifact_manager=self.artifact_man,
@@ -220,7 +220,7 @@ class TestResumeInvalidation(unittest.TestCase):
 
         # Resume with fresh executor
         executor2 = FakeExecutor()
-        engine2 = ManusMiniEngine(
+        engine2 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=executor2,
             artifact_manager=self.artifact_man,
@@ -256,7 +256,7 @@ class TestResumeInvalidation(unittest.TestCase):
         src = os.path.join(self.test_dir, "usage.md")
         self._create_text(src, "USAGE_CONTENT")
 
-        engine1 = ManusMiniEngine(
+        engine1 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=FakeExecutor(),
             artifact_manager=self.artifact_man,
@@ -282,7 +282,7 @@ class TestResumeInvalidation(unittest.TestCase):
         self.assertIn("success", rec)
 
         # Resume in a new engine
-        engine2 = ManusMiniEngine(
+        engine2 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=FakeExecutor(),
             artifact_manager=self.artifact_man,
@@ -303,7 +303,7 @@ class TestResumeInvalidation(unittest.TestCase):
         self._create_text(src, "STABLE_CONTENT")
 
         executor1 = FakeExecutor()
-        engine1 = ManusMiniEngine(
+        engine1 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=executor1,
             artifact_manager=self.artifact_man,
@@ -316,7 +316,7 @@ class TestResumeInvalidation(unittest.TestCase):
 
         # Resume unchanged
         executor2 = FakeExecutor()
-        engine2 = ManusMiniEngine(
+        engine2 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=executor2,
             artifact_manager=self.artifact_man,
@@ -336,7 +336,7 @@ class TestResumeInvalidation(unittest.TestCase):
 
 class TestCostAccounting(unittest.TestCase):
     def setUp(self):
-        self.test_dir = tempfile.mkdtemp(prefix="manus_cost_")
+        self.test_dir = tempfile.mkdtemp(prefix="agentcore_cost_")
         self.checkpoint_dir = os.path.join(self.test_dir, "checkpoints")
 
     def tearDown(self):
@@ -346,7 +346,7 @@ class TestCostAccounting(unittest.TestCase):
     # Test 7: Cost estimate vs actual separated
     def test_cost_estimate_vs_actual(self):
         executor = _ActualCostExecutor(actual_cost=0.42)
-        engine = ManusMiniEngine(checkpoint_dir=self.checkpoint_dir, executor=executor)
+        engine = AgentCoreEngine(checkpoint_dir=self.checkpoint_dir, executor=executor)
         task = TaskInput(prompt="Cost test", task_id="cost_test", budget=10.0)
         engine.initialize_task(task)
         engine.run_next_unit()
@@ -367,7 +367,7 @@ class TestCostAccounting(unittest.TestCase):
     # Test 8: No actual cost → cost_source == estimate
     def test_no_actual_cost_uses_estimate(self):
         executor = FakeExecutor()
-        engine = ManusMiniEngine(checkpoint_dir=self.checkpoint_dir, executor=executor)
+        engine = AgentCoreEngine(checkpoint_dir=self.checkpoint_dir, executor=executor)
         task = TaskInput(prompt="No cost test", task_id="no_cost", budget=10.0)
         engine.initialize_task(task)
         engine.run_next_unit()
@@ -380,7 +380,7 @@ class TestCostAccounting(unittest.TestCase):
 
 class TestDependencyAndRetry(unittest.TestCase):
     def setUp(self):
-        self.test_dir = tempfile.mkdtemp(prefix="manus_dep_")
+        self.test_dir = tempfile.mkdtemp(prefix="agentcore_dep_")
         self.checkpoint_dir = os.path.join(self.test_dir, "checkpoints")
         self.artifact_man = ArtifactManager(base_dir=os.path.join(self.test_dir, "artifacts"))
 
@@ -415,7 +415,7 @@ class TestDependencyAndRetry(unittest.TestCase):
                 )
 
         executor = _DepExecutor()
-        engine = ManusMiniEngine(
+        engine = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=executor,
             artifact_manager=self.artifact_man,
@@ -448,7 +448,7 @@ class TestDependencyAndRetry(unittest.TestCase):
     def test_retry_limit_prevents_infinite_retry(self):
         failing_executor = FakeExecutor(should_fail=True)
         config = RuntimeConfig(max_attempts=2)
-        engine = ManusMiniEngine(
+        engine = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=failing_executor,
             artifact_manager=self.artifact_man,

@@ -1,4 +1,4 @@
-"""Universal Input Router for Manus Mini v2.
+"""Universal Input Router for AgentCore.
 Routes input files and sources to appropriate processors and builds a TaskContext.
 Persists large normalized content and references it by path.
 """

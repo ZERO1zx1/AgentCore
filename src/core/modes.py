@@ -1,4 +1,4 @@
-"""Execution Mode Abstractions for Manus Mini.
+"""Execution Mode Abstractions for AgentCore.
 Defines AUTO, FULL, and CREDIT_SAFE modes.
 """
 from enum import Enum

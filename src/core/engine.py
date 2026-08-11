@@ -1,4 +1,4 @@
-"""Core Execution Engine for Manus Mini v2.
+"""Core Execution Engine for AgentCore.
 Orchestrates task execution with real input routing, planning, scheduling,
 policy enforcement, executor injection, artifact management, and resume.
 Provider-agnostic: the engine only knows prompt, capabilities, result, usage, artifacts.
@@ -27,10 +27,10 @@ import json
 import os
 
 
-class ManusMiniEngine:
+class AgentCoreEngine:
     def __init__(
         self,
-        checkpoint_dir: str = ".manus-mini/checkpoints",
+        checkpoint_dir: str = ".agentcore/checkpoints",
         executor: Optional[OperationExecutor] = None,
         model_registry: Optional[ModelRegistry] = None,
         artifact_manager: Optional[ArtifactManager] = None,
@@ -542,3 +542,7 @@ class ManusMiniEngine:
             self._persist_context_to_manifest(manifest)
             self.checkpoint_manager.save_checkpoint(manifest)
         return OutputManager.generate_report(manifest, reason) if manifest else reason
+
+
+# Backward-compatible alias for legacy imports
+ManusMiniEngine = AgentCoreEngine

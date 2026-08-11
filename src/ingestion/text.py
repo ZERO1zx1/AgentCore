@@ -1,4 +1,4 @@
-"""Deterministic Text Processor for Manus Mini v2.
+"""Deterministic Text Processor for AgentCore.
 Handles .txt and .md files: validation, safe reading, size, SHA-256 fingerprint,
 encoding handling, and chunking for large files. No AI model involved.
 """

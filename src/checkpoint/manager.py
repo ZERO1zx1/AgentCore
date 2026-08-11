@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 from src.checkpoint.manifest import TaskManifest
 
 class CheckpointManager:
-    def __init__(self, checkpoint_dir: str = ".manus-mini/checkpoints"):
+    def __init__(self, checkpoint_dir: str = ".agentcore/checkpoints"):
         self.checkpoint_dir = checkpoint_dir
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 

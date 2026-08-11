@@ -1,4 +1,4 @@
-"""Comprehensive End-to-End Pipeline Tests for Manus Mini v2.
+"""Comprehensive End-to-End Pipeline Tests for AgentCore.
 Tests the real execution flow: TaskInput -> InputRouter -> TaskContext -> Planner -> Scheduler -> WorkUnit -> FakeExecutor -> ExecutionResult -> ArtifactManager -> real file -> TaskManifest -> checkpoint.
 """
 import unittest
@@ -7,7 +7,7 @@ import shutil
 import json
 import tempfile
 from decimal import Decimal
-from src.core.engine import ManusMiniEngine
+from src.core.engine import AgentCoreEngine
 from src.core.task import TaskInput
 from src.core.modes import ExecutionMode
 from src.core.executor import FakeExecutor
@@ -20,14 +20,14 @@ from src.output.artifact_manager import ArtifactManager
 
 
 class TestE2EPipeline(unittest.TestCase):
-    """Tests the full Manus Mini pipeline end-to-end."""
+    """Tests the full AgentCore pipeline end-to-end."""
 
     def setUp(self):
-        self.test_dir = tempfile.mkdtemp(prefix="manus_e2e_")
+        self.test_dir = tempfile.mkdtemp(prefix="agentcore_e2e_")
         self.checkpoint_dir = os.path.join(self.test_dir, "checkpoints")
         self.artifact_base = os.path.join(self.test_dir, "artifacts")
         self.executor = FakeExecutor()
-        self.engine = ManusMiniEngine(
+        self.engine = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=self.executor,
             artifact_manager=ArtifactManager(base_dir=self.artifact_base),
@@ -133,7 +133,7 @@ class TestE2EPipeline(unittest.TestCase):
         first_completed = list(self.engine.current_manifest.completed_work)
 
         # Create new engine to resume
-        engine2 = ManusMiniEngine(
+        engine2 = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=FakeExecutor(),
             artifact_manager=self.engine.artifact_manager,
@@ -177,7 +177,7 @@ class TestE2EPipeline(unittest.TestCase):
         self.assertEqual(context.source_types.get(pdf_path), "pdf")
         self.assertIn("sha256", context.document_context.get(pdf_path, {}))
 
-        engine = ManusMiniEngine(
+        engine = AgentCoreEngine(
             checkpoint_dir=self.checkpoint_dir,
             executor=FakeExecutor(),
         )

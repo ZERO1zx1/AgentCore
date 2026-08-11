@@ -1,4 +1,4 @@
-"""Typed ExecutionResult contract for Manus Mini v2.
+"""Typed ExecutionResult contract for AgentCore.
 Standardizes executor output across FakeExecutor, ProductionProviderExecutor, and custom executors.
 """
 from dataclasses import dataclass, field

@@ -1,4 +1,4 @@
-"""Repository Processor for Manus Mini v2.
+"""Repository Processor for AgentCore.
 Inspects repository structure, manifests, file tree, and Git status.
 Collects useful deterministic context without sending the entire repository to the executor.
 """
@@ -6,7 +6,7 @@ import os
 import subprocess
 from typing import Dict, Any, List, Set
 
-IGNORED_DIRS = {".git", ".manus-mini", ".venv", "venv", "env", "__pycache__", ".pytest_cache", "node_modules", ".mypy_cache", ".idea", ".vscode"}
+IGNORED_DIRS = {".git", ".manus-mini", ".agentcore", ".venv", "venv", "env", "__pycache__", ".pytest_cache", "node_modules", ".mypy_cache", ".idea", ".vscode"}
 IGNORED_EXTENSIONS = {".pyc", ".pyo", ".class", ".o", ".so", ".dll", ".exe", ".obj", ".log"}
 
 ENTRY_POINT_CANDIDATES = ["main.py", "app.py", "cli.py", "manage.py", "index.js", "index.ts", "main.ts", "server.js", "server.ts"]

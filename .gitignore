@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .manus-mini/
+.agentcore/
 .test_manus_mini/
 .test_manus_mini_refined/
 .test_pdf_processor/

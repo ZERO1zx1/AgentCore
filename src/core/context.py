@@ -1,4 +1,4 @@
-"""Typed TaskContext for Manus Mini v2.
+"""Typed TaskContext for AgentCore.
 Holds normalized context about the task, its input sources, and persisted context references.
 Large normalized content is persisted to disk and referenced by path, not copied repeatedly.
 """

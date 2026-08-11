@@ -1,4 +1,4 @@
-"""Real PDF Processor for Manus Mini v2.
+"""Real PDF Processor for AgentCore.
 Inspects PDF files, computes SHA-256 fingerprints, extracts text, persists chunks, and manages chunked processing.
 """
 import os
@@ -13,7 +13,7 @@ except ImportError:
 
 
 class PDFProcessor:
-    def __init__(self, task_id: str, state_dir: str = ".manus-mini/state"):
+    def __init__(self, task_id: str, state_dir: str = ".agentcore/state"):
         self.task_id = task_id
         self.state_dir = os.path.join(state_dir, task_id, "pdf")
         os.makedirs(self.state_dir, exist_ok=True)

@@ -1,6 +1,6 @@
 # Checkpointing and Resumability
 
-Manus Mini ensures that all progress is persistent and resumable, preventing the need to repeat expensive paid operations.
+AgentCore ensures that all progress is persistent and resumable, preventing the need to repeat expensive paid operations.
 
 ## Checkpoint Invariants
 

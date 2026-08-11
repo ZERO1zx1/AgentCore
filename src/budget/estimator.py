@@ -1,4 +1,4 @@
-"""Cost Estimator for Manus Mini v2.
+"""Cost Estimator for AgentCore.
 Estimates input/output tokens, model costs, and operation expenses.
 """
 from typing import Dict, Any, Optional

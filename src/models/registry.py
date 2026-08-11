@@ -1,4 +1,4 @@
-"""Model Registry and Specification for Manus Mini v2.
+"""Model Registry and Specification for AgentCore.
 Injectable model specs with capability filtering before cost optimization.
 """
 from dataclasses import dataclass, field

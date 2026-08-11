@@ -1,4 +1,4 @@
-"""Budget State Machine and Estimator for Manus Mini v2.
+"""Budget State Machine and Estimator for AgentCore.
 Manages budget states with Decimal safety and support for abstract budget units.
 """
 from decimal import Decimal

@@ -1,6 +1,6 @@
 # Output Contract
 
-Every Manus Mini task concludes with a factual execution report and a defined status.
+Every AgentCore task concludes with a factual execution report and a defined status.
 
 ## Task Statuses
 
@@ -20,4 +20,4 @@ The final report includes:
 
 ## Code-First Policy
 
-When the requested deliverable is software, Manus Mini prioritizes the production of actual source files, configuration, and tests over long-form conversational explanations.
+When the requested deliverable is software, AgentCore prioritizes the production of actual source files, configuration, and tests over long-form conversational explanations.

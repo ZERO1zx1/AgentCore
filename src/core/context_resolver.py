@@ -1,4 +1,4 @@
-"""Context Resolver for Manus Mini v2.
+"""Context Resolver for AgentCore.
 Resolves real relevant content from TaskContext for WorkUnit execution prompts.
 Deterministic, size-limited, provider-agnostic.
 """

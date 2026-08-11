@@ -1,6 +1,6 @@
 # Execution Modes
 
-Manus Mini supports three distinct execution modes to balance quality, cost, and speed.
+AgentCore supports three distinct execution modes to balance quality, cost, and speed.
 
 | Mode | Priority | Strategy | Use Case |
 | :--- | :--- | :--- | :--- |
@@ -16,7 +16,7 @@ Manus Mini supports three distinct execution modes to balance quality, cost, and
 
 ## Budget Awareness in All Modes
 
-Regardless of the selected mode, Manus Mini always:
+Regardless of the selected mode, AgentCore always:
 - Reserves an emergency output buffer (default 15%).
 - Checkpoints meaningful progress to prevent loss of paid work.
 - Gracefully stops before budget exhaustion.

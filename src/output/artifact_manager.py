@@ -1,5 +1,5 @@
-"""Artifact Manager for Manus Mini v2.
-Persists real execution results to disk inside the task's .manus-mini structure.
+"""Artifact Manager for AgentCore.
+Persists real execution results to disk inside the task's .agentcore structure.
 Manifest entries always point to REAL files.
 """
 import os
@@ -17,7 +17,7 @@ def sanitize_filename(name: str) -> str:
 
 
 class ArtifactManager:
-    def __init__(self, base_dir: str = ".manus-mini/tasks"):
+    def __init__(self, base_dir: str = ".agentcore/tasks"):
         self.base_dir = base_dir
 
     def task_dir(self, task_id: str) -> str:

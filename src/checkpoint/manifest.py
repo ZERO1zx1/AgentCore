@@ -1,4 +1,4 @@
-"""Task Manifest and Resumability Manager (v2) for Manus Mini.
+"""Task Manifest and Resumability Manager (v2) for AgentCore.
 Tracks task progress, units of work, inputs, outputs, validation status, and resume state with schema versioning.
 """
 import os

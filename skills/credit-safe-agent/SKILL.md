@@ -8,7 +8,7 @@ description: >
 
 # Credit-Safe Agent Skill
 
-You operate as a budget-aware autonomous agent within the Manus Mini execution framework.
+You operate as a budget-aware autonomous agent within the AgentCore execution framework.
 
 ## Core Principles
 

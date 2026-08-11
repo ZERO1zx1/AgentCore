@@ -1,24 +1,29 @@
-# Manus Mini
+# AgentCore
 
-> **Understand the task. Choose the right execution strategy. Spend intelligently. Produce real work. Preserve progress. Resume instead of restart.**
+> **Provider-Agnostic AI Agent Execution Framework**
 
-**Manus Mini** is a universal, **provider-agnostic** autonomous work and builder framework designed for high-efficiency, budget-aware execution. It implements a robust agentic engine capable of handling software repositories, structured data, and parsed documents while protecting the user's execution budget through incremental checkpointing and capability-aware routing.
+**AgentCore** is a provider-agnostic, budget-aware, resumable AI agent execution framework for cloud models, local models, coding agents, custom runtimes, and future AI providers. It implements a robust agentic engine capable of handling software repositories, structured data, and parsed documents while protecting the user's execution budget through incremental checkpointing and capability-aware routing.
 
-Manus Mini is **not limited to the Manus platform**. It is a budget-aware execution framework that can be integrated with any AI runtime or provider through the `OperationExecutor` adapter contract.
+AgentCore is designed to remain independent of any single AI provider, agent platform, or model runtime. External runtimes integrate through the `OperationExecutor` adapter contract.
 
 ---
 
 ## Architecture: Provider-Agnostic
 
-```
-AI Runtime / Provider (Cline, Gemini CLI, OpenHands, Kimi, Copilot,
-                       custom LLM APIs, local Ollama/LM Studio, ...)
-        ↓  (adapter implementing OperationExecutor)
+```text
+AI Runtime / Provider
+        ↓
 OperationExecutor Adapter
         ↓
-        Manus Mini
+AgentCore
         ↓
-Planner / Budget / Checkpoint / Artifacts
+Input / Context / Planner / WorkUnits
+        ↓
+Budget / Policy / Routing
+        ↓
+Execution / Artifacts
+        ↓
+Checkpoint / Resume
 ```
 
 The engine only knows:
@@ -57,6 +62,8 @@ class MyExecutor(OperationExecutor):
 
 ## Core Execution Modes
 
+AgentCore execution modes:
+
 | Mode | Philosophy | Best For |
 | :--- | :--- | :--- |
 | **AUTO** | Dynamic Efficiency | General-purpose tasks and daily workflows |
@@ -74,9 +81,12 @@ class MyExecutor(OperationExecutor):
 | **JSON** | Supported | Local parse, structure metadata, subset extraction |
 | **CSV** | Supported | Headers, row/column counts, subset extraction |
 | **PDF** | Supported | Real parsing via `pypdf`, chunking, text extraction, hashing |
-| **Budget Safety** | Supported | Decimal-safe accounting, P0-P4 prioritization, estimate-vs-actual separation |
-| **Task Resumption** | Supported | SHA-256 fingerprinting, V2 Task Manifests, source-change invalidation |
-| **Real Model Execution** | Requires injected adapter | `OperationExecutor` integration boundary |
+| **Budget-aware execution** | Supported | Decimal-safe accounting, P0-P4 prioritization, estimate-vs-actual separation |
+| **Checkpoint / Resume** | Supported | SHA-256 fingerprinting, V2 Task Manifests, source-change invalidation |
+| **Source fingerprint invalidation** | Supported | Granular, dependency-aware invalidation |
+| **Real artifact persistence** | Supported | Real files written to `.agentcore/` |
+| **Provider adapter contract** | Supported | `OperationExecutor` integration boundary |
+| **Real model/provider execution** | Requires external adapter | `OperationExecutor` adapter required |
 | **FakeExecutor** | Test/Demo only | Offline deterministic execution, no real model calls |
 | **DOCX / XLSX / PPTX** | Not implemented | — |
 | **Image / Video / Audio** | Not implemented | — |
@@ -121,19 +131,19 @@ If `pypdf` is unavailable, PDF processing operations will raise a `BLOCKED` erro
 
 ## Executor Architecture
 
-Manus Mini uses an injectable `OperationExecutor` interface:
+AgentCore uses an injectable `OperationExecutor` interface:
 - **`FakeExecutor`**: Used by default for unit testing and offline demonstrations. It does **not** perform real autonomous model execution.
 - **`ProductionProviderExecutor`**: An extensible adapter template. Applications performing real production work must supply a configured provider adapter implementing `OperationExecutor`.
 
 ### Quick Start (Demo with FakeExecutor)
 ```python
-from src.core.engine import ManusMiniEngine
+from src.core.engine import AgentCoreEngine
 from src.core.task import TaskInput
 from src.core.modes import ExecutionMode
 from src.core.executor import FakeExecutor
 
 # Engine defaults to FakeExecutor for offline safety
-engine = ManusMiniEngine(executor=FakeExecutor())
+engine = AgentCoreEngine(executor=FakeExecutor())
 task = TaskInput(
     prompt="Analyze repository",
     task_id="task_demo",
@@ -165,6 +175,17 @@ Reason codes:
 - `EXECUTION_ERROR`
 - `VALIDATION_ERROR`
 - `NONE`
+
+---
+
+## Legacy Compatibility
+
+AgentCore was previously developed under the name "Manus Mini".
+
+Existing imports or runtime paths may remain temporarily supported for backward compatibility:
+
+- `from src.core.engine import ManusMiniEngine` still works (alias for `AgentCoreEngine`)
+- Legacy `.manus-mini/` runtime data is not deleted; new tasks use `.agentcore/`
 
 ---
 

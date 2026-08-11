@@ -1,6 +1,6 @@
 # Budget Policy
 
-Manus Mini implements a rigorous budget management system to ensure that no paid work is ever lost.
+AgentCore implements a rigorous budget management system to ensure that no paid work is ever lost.
 
 ## Budget States
 

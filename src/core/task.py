@@ -1,4 +1,4 @@
-"""Task Model and Input Routing for Manus Mini.
+"""Task Model and Input Routing for AgentCore.
 Defines the universal task structure and input processing.
 """
 from dataclasses import dataclass, field

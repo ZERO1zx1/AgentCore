@@ -1,4 +1,4 @@
-"""Output and Rescue Manager for Manus Mini v2.
+"""Output and Rescue Manager for AgentCore.
 Handles final reports, partial rescue reports, and portable path formatting.
 """
 import os
@@ -65,7 +65,7 @@ class OutputManager:
         return "\n".join(report)
 
     @staticmethod
-    def save_report(manifest: TaskManifest, output_dir: str = ".manus-mini/outputs") -> str:
+    def save_report(manifest: TaskManifest, output_dir: str = ".agentcore/outputs") -> str:
         os.makedirs(output_dir, exist_ok=True)
         path = os.path.join(output_dir, f"{manifest.task_id}_report.md")
         content = OutputManager.generate_report(manifest)

@@ -1,6 +1,6 @@
 # Model Routing Policy
 
-Manus Mini uses a capability-aware routing system to select the most cost-effective execution path.
+AgentCore uses a capability-aware routing system to select the most cost-effective execution path.
 
 ## Model Tiers
 

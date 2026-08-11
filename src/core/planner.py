@@ -1,4 +1,4 @@
-"""Planner and Scheduler for Manus Mini v2.
+"""Planner and Scheduler for AgentCore.
 Manages work units, priorities (P0-P4), dependency scheduling, and rule-based planning.
 """
 from dataclasses import dataclass, field

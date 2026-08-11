@@ -1,4 +1,4 @@
-"""Deterministic Structured Data Processor for Manus Mini v2.
+"""Deterministic Structured Data Processor for AgentCore.
 Handles JSON and CSV files: local parsing, structure metadata, SHA-256 fingerprints,
 and simple relevant-subset support. No LLM involved for parsing/counting.
 """

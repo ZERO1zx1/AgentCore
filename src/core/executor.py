@@ -1,4 +1,4 @@
-"""Executor interface, FakeExecutor, and ProviderExecutor template for Manus Mini v2.
+"""Executor interface, FakeExecutor, and ProviderExecutor template for AgentCore.
 All executors return the typed ExecutionResult contract.
 """
 from abc import ABC, abstractmethod
