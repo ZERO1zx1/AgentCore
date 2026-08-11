@@ -33,20 +33,18 @@ class PDFProcessor:
         page_count = 0
         has_text = False
         
-        if pypdf:
-            try:
-                reader = pypdf.PdfReader(pdf_path)
-                page_count = len(reader.pages)
-                for page in reader.pages:
-                    if page.extract_text().strip():
-                        has_text = True
-                        break
-            except Exception:
-                pass
-        else:
-            # Fallback if pypdf is not installed
-            page_count = 1
-            has_text = True
+        if not pypdf:
+            raise RuntimeError("BLOCKED: pypdf dependency unavailable. Install requirements.txt to enable PDF processing.")
+        
+        try:
+            reader = pypdf.PdfReader(pdf_path)
+            page_count = len(reader.pages)
+            for page in reader.pages:
+                if page.extract_text().strip():
+                    has_text = True
+                    break
+        except Exception as e:
+            raise RuntimeError(f"Failed to parse PDF: {e}")
 
         return {
             "path": pdf_path,
@@ -66,17 +64,17 @@ class PDFProcessor:
             chunk_id = f"chunk_{start}_{end}"
             chunk_file = os.path.join(self.state_dir, f"{chunk_id}.txt")
             
-            # Extract text if pypdf available
-            text_content = f"PDF Chunk pages {start} to {end}"
-            if pypdf:
-                try:
-                    reader = pypdf.PdfReader(pdf_path)
-                    extracted = []
-                    for p in range(start, end):
-                        extracted.append(reader.pages[p].extract_text() or "")
-                    text_content = "\n".join(extracted)
-                except Exception:
-                    pass
+            if not pypdf:
+                raise RuntimeError("BLOCKED: pypdf dependency unavailable.")
+            
+            try:
+                reader = pypdf.PdfReader(pdf_path)
+                extracted = []
+                for p in range(start, end):
+                    extracted.append(reader.pages[p].extract_text() or "")
+                text_content = "\n".join(extracted)
+            except Exception as e:
+                raise RuntimeError(f"Failed to extract PDF chunk text: {e}")
 
             with open(chunk_file, "w", encoding="utf-8") as f:
                 f.write(text_content)

@@ -2,7 +2,7 @@
 
 > **Understand the task. Choose the right execution strategy. Spend intelligently. Produce real work. Preserve progress. Resume instead of restart.**
 
-**Manus Mini** is a universal autonomous work and builder framework designed for high-efficiency, budget-aware execution. It implements a robust agentic engine capable of handling software repositories, large documents, and structured data while protecting the user's execution budget through incremental checkpointing and capability-aware routing.
+**Manus Mini** is a universal autonomous work and builder framework designed for high-efficiency, budget-aware execution. It implements a robust agentic engine capable of handling software repositories, structured data, and parsed documents while protecting the user's execution budget through incremental checkpointing and capability-aware routing.
 
 ---
 
@@ -23,7 +23,7 @@ Manus Mini provides three primary execution strategies to suit different task re
 | Capability | Status | Implementation |
 | :--- | :--- | :--- |
 | **Text Processing** | Supported | Deterministic Python & LLM Routing |
-| **PDF Processing** | Supported | Real parsing via `pypdf`, chunking, and hashing |
+| **PDF Processing** | Supported | Real parsing via `pypdf`, chunking, and hashing (requires `requirements.txt`) |
 | **Repository Analysis** | Supported | File tree inspection, manifest detection |
 | **Budget Safety** | Supported | Decimal-safe accounting, P0-P4 prioritization |
 | **Task Resumption** | Supported | SHA-256 fingerprinting, V2 Task Manifests |
@@ -32,35 +32,34 @@ Manus Mini provides three primary execution strategies to suit different task re
 
 ---
 
-## Key Features
+## Installation & Dependencies
 
-- **Universal Task Engine**: Orchestrates complex multi-step workflows with a real Planner and Scheduler.
-- **Budget State Machine**: Dynamically manages states from `NORMAL` to `EXHAUSTED` with a 15% emergency reserve.
-- **Capability-Aware Router**: Selects the most cost-effective capable model tier for every operation.
-- **Atomic Checkpointing**: Ensures every meaningful unit of work is persisted, enabling seamless task resumption.
-- **Decimal-Safe Accounting**: Prevents floating-point errors in budget tracking across task resumes.
-- **Injectable Registry**: Support for custom model configurations and fake executors for testing.
+Install required dependencies for PDF processing and document ingestion:
+```bash
+pip3 install -r requirements.txt
+```
+If `pypdf` is unavailable, PDF processing operations will raise a `BLOCKED` error rather than returning placeholder text.
 
 ---
 
-## Quick Start
+## Executor Architecture
 
-### Run Validation Suite
-```bash
-python3 -m unittest discover tests -v
-```
+Manus Mini uses an injectable `OperationExecutor` interface:
+- **`FakeExecutor`**: Used by default for unit testing and offline demonstrations. It does **not** perform real autonomous model execution.
+- **`ProductionProviderExecutor`**: An extensible interface template. Applications performing real production work must supply a configured provider adapter implementing `OperationExecutor`.
 
-### Basic Usage
+### Quick Start (Demo with FakeExecutor)
 ```python
 from src.core.engine import ManusMiniEngine
 from src.core.task import TaskInput
 from src.core.modes import ExecutionMode
+from src.core.executor import FakeExecutor
 
-# Initialize with default FakeExecutor for safety
-engine = ManusMiniEngine()
+# Engine defaults to FakeExecutor for offline safety
+engine = ManusMiniEngine(executor=FakeExecutor())
 task = TaskInput(
-    prompt="Analyze this repository",
-    task_id="task_001",
+    prompt="Analyze repository",
+    task_id="task_demo",
     execution_mode=ExecutionMode.AUTO,
     budget=10.0
 )
