@@ -49,6 +49,7 @@ class TaskManifest:
         self.pending_work: List[str] = []
         self.next_actions: List[str] = []
         self.errors: List[str] = []
+        self.reason: str = "NONE"
         self.task_context_dict: Dict[str, Any] = {}
         self.work_units_data: List[Dict[str, Any]] = []
         self.updated_at = datetime.now(UTC).isoformat()
@@ -91,6 +92,7 @@ class TaskManifest:
             "completed_work": self.completed_work,
             "pending_work": self.pending_work,
             "errors": self.errors,
+            "reason": self.reason,
             "next_actions": self.next_actions,
             "task_context": self.task_context_dict,
             "work_units": self.work_units_data
@@ -130,6 +132,7 @@ class TaskManifest:
         manifest.completed_work = data.get("completed_work", [])
         manifest.pending_work = data.get("pending_work", [])
         manifest.errors = data.get("errors", [])
+        manifest.reason = data.get("reason", "NONE")
         manifest.next_actions = data.get("next_actions", [])
         manifest.task_context_dict = data.get("task_context", {})
         manifest.work_units_data = data.get("work_units", [])

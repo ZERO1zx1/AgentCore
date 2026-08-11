@@ -219,9 +219,11 @@ class TestE2EPipeline(unittest.TestCase):
         self.assertIn("provider", usage_record)
         self.assertIn("model_id", usage_record)
         self.assertIn("estimated_cost", usage_record)
-        self.assertIn("prompt_tokens", usage_record)
-        self.assertEqual(usage_record["prompt_tokens"], 100)
-        self.assertEqual(usage_record["completion_tokens"], 50)
+        self.assertIn("input_tokens", usage_record)
+        self.assertEqual(usage_record["input_tokens"], 100)
+        self.assertEqual(usage_record["output_tokens"], 50)
+        self.assertEqual(usage_record["total_tokens"], 150)
+        self.assertIn("cost_source", usage_record)
 
         # Check manifest model_history
         manifest = self.engine.current_manifest

@@ -1,6 +1,7 @@
 """Core Execution Engine for Manus Mini v2.
 Orchestrates task execution with real input routing, planning, scheduling,
 policy enforcement, executor injection, artifact management, and resume.
+Provider-agnostic: the engine only knows prompt, capabilities, result, usage, artifacts.
 """
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
@@ -8,6 +9,8 @@ from src.core.task import TaskInput
 from src.core.modes import ExecutionMode
 from src.core.context import TaskContext
 from src.core.execution_result import ExecutionResult
+from src.core.runtime_config import RuntimeConfig
+from src.core.context_resolver import ContextResolver
 from src.budget.state import BudgetManager, BudgetState
 from src.budget.estimator import CostEstimator
 from src.checkpoint.manifest import TaskManifest
@@ -19,7 +22,9 @@ from src.core.executor import OperationExecutor, FakeExecutor
 from src.output.manager import OutputManager
 from src.output.artifact_manager import ArtifactManager
 from src.ingestion.router import InputRouter
+from src.ingestion.repository import RepositoryProcessor
 import json
+import os
 
 
 class ManusMiniEngine:
@@ -29,11 +34,14 @@ class ManusMiniEngine:
         executor: Optional[OperationExecutor] = None,
         model_registry: Optional[ModelRegistry] = None,
         artifact_manager: Optional[ArtifactManager] = None,
+        runtime_config: Optional[RuntimeConfig] = None,
     ):
-        self.checkpoint_manager = CheckpointManager(checkpoint_dir)
+        self.runtime_config = runtime_config or RuntimeConfig()
+        self.checkpoint_manager = CheckpointManager(checkpoint_dir or self.runtime_config.checkpoint_root)
         self.executor = executor or FakeExecutor()
         self.model_registry = model_registry or ModelRegistry()
-        self.artifact_manager = artifact_manager or ArtifactManager()
+        self.artifact_manager = artifact_manager or ArtifactManager(base_dir=self.runtime_config.artifact_root)
+        self.context_resolver = ContextResolver(self.runtime_config)
         self.budget_manager: Optional[BudgetManager] = None
         self.current_manifest: Optional[TaskManifest] = None
         self.current_context: Optional[TaskContext] = None
@@ -49,10 +57,13 @@ class ManusMiniEngine:
         # --- NEW TASK FLOW ---
 
         # Step 1: Route inputs to processors and build TaskContext
+        context_dir = os.path.join(self.artifact_manager.task_dir(task_input.task_id), "context")
+        os.makedirs(context_dir, exist_ok=True)
         context = InputRouter.route(
             task_id=task_input.task_id,
             sources=task_input.files,
             repository=task_input.repository,
+            context_dir=context_dir,
         )
         context.user_prompt = task_input.prompt
         context.execution_mode = task_input.execution_mode.value
@@ -116,12 +127,19 @@ class ManusMiniEngine:
         if stored_work_units:
             self.work_units = [WorkUnit.from_dict(wd) for wd in stored_work_units]
         else:
-            # Fallback: re-plan
             self.work_units = Planner.plan_task(
                 self.current_context.user_prompt if hasattr(self.current_context, "user_prompt") else task_input.prompt,
                 getattr(self.current_context, "input_sources", task_input.files),
                 self.current_context,
             )
+
+        # Source fingerprint invalidation
+        if self._check_source_fingerprints():
+            # Sources unchanged — keep completed work
+            pass
+        else:
+            # Sources changed — invalidate affected work
+            self._invalidate_changed_sources()
 
         # Recalculate remaining budget for resumed task (use provided budget if higher)
         if task_input.budget > manifest.budget_info.get("initial", 0):
@@ -149,18 +167,38 @@ class ManusMiniEngine:
         if not self.current_context or not self.current_manifest:
             return False
         import hashlib
-        import os
         for src_path in self.current_context.input_sources:
-            if os.path.isfile(src_path) and not self.current_context.source_types.get(src_path) == "repository":
-                old_fp = self.current_context.source_fingerprints.get(src_path, "")
+            src_type = self.current_context.source_types.get(src_path, "")
+            old_fp = self.current_context.source_fingerprints.get(src_path, "")
+            if not old_fp:
+                continue
+            if src_type == "repository":
+                new_fp = RepositoryProcessor.fingerprint_repository(src_path)
+            elif os.path.isfile(src_path):
                 try:
                     with open(src_path, "rb") as f:
                         new_fp = hashlib.sha256(f.read()).hexdigest()
                 except Exception:
                     new_fp = ""
-                if old_fp and new_fp and old_fp != new_fp:
-                    return False
+            else:
+                continue
+            if old_fp and new_fp and old_fp != new_fp:
+                return False
         return True
+
+    def _invalidate_changed_sources(self):
+        """Mark dependent WorkUnits pending again when sources changed."""
+        if not self.current_manifest:
+            return
+        # Simple approach: reset all non-completed units to pending
+        # and mark completed units that depend on changed sources as pending
+        for unit in self.work_units:
+            if unit.status == "completed":
+                # Re-validate: if source changed, re-run
+                unit.status = "pending"
+                if unit.id in self.current_manifest.completed_work:
+                    self.current_manifest.completed_work.remove(unit.id)
+        self.current_manifest.progress["completed_units"] = len(self.current_manifest.completed_work)
 
     def run_next_unit(self) -> bool:
         if not self.budget_manager or not self.current_manifest:
@@ -168,7 +206,8 @@ class ManusMiniEngine:
 
         budget_state = self.budget_manager.evaluate_state()
         if budget_state == BudgetState.EXHAUSTED or budget_state == BudgetState.EMERGENCY:
-            self.current_manifest.set_status("paused_budget")
+            self.current_manifest.set_status("PARTIALLY_COMPLETED")
+            self.current_manifest.reason = "BUDGET_LIMIT"
             self.current_manifest.errors.append("Budget reached emergency or exhausted state.")
             self._persist_context_to_manifest(self.current_manifest)
             self.checkpoint_manager.save_checkpoint(self.current_manifest)
@@ -183,7 +222,8 @@ class ManusMiniEngine:
 
         if not eligible:
             if len(self.current_manifest.completed_work) >= len([u for u in self.work_units if not u.optional]):
-                self.current_manifest.set_status("completed")
+                self.current_manifest.set_status("COMPLETED")
+                self.current_manifest.reason = "NONE"
                 self._persist_context_to_manifest(self.current_manifest)
                 self.checkpoint_manager.save_checkpoint(self.current_manifest)
             return False
@@ -191,6 +231,17 @@ class ManusMiniEngine:
         unit = eligible[0]
         self.current_manifest.progress["current_unit"] = unit.id
         unit.status = "in_progress"
+
+        # Retry limit check
+        attempts = unit.metadata.get("attempt_count", 0)
+        if attempts >= self.runtime_config.max_attempts:
+            unit.status = "failed"
+            self.current_manifest.errors.append(f"Unit {unit.id} exceeded max attempts ({self.runtime_config.max_attempts})")
+            self.current_manifest.set_status("FAILED")
+            self.current_manifest.reason = "EXECUTION_ERROR"
+            self._persist_context_to_manifest(self.current_manifest)
+            self.checkpoint_manager.save_checkpoint(self.current_manifest)
+            return False
 
         # Policy & Routing
         preferred_tier = ExecutionPolicy.adjust_routing(
@@ -204,17 +255,19 @@ class ManusMiniEngine:
             self.current_manifest.errors.append(
                 f"No capable model found for capabilities: {unit.required_capabilities}"
             )
+            self.current_manifest.set_status("BLOCKED")
+            self.current_manifest.reason = "PROVIDER_NOT_CONFIGURED"
             self._persist_context_to_manifest(self.current_manifest)
             self.checkpoint_manager.save_checkpoint(self.current_manifest)
-            self.current_manifest.set_status("blocked")
             return False
 
-        # Cost Estimation
+        # Cost Estimation (before execution)
         est_cost = CostEstimator.estimate_unit_cost(unit.type, model)
 
         # Budget check
         if not self.budget_manager.can_afford(est_cost, unit.optional):
-            self.current_manifest.set_status("paused_budget")
+            self.current_manifest.set_status("PARTIALLY_COMPLETED")
+            self.current_manifest.reason = "BUDGET_LIMIT"
             self.current_manifest.errors.append(
                 f"Cannot afford unit {unit.id} with estimated cost {est_cost}"
             )
@@ -222,11 +275,19 @@ class ManusMiniEngine:
             self.checkpoint_manager.save_checkpoint(self.current_manifest)
             return False
 
-        # Build meaningful execution prompt
+        # Build meaningful execution prompt with real context
         prompt = self._build_execution_prompt(unit)
 
         # Execute
         exec_result = self.executor.execute(unit.type, model.model_id, prompt)
+
+        # Normalize usage
+        usage = self._normalize_usage(exec_result.usage)
+
+        # Cost accounting: separate estimate from actual
+        actual_cost = exec_result.metadata.get("actual_cost")
+        cost_source = "provider" if actual_cost is not None else "estimate"
+        charged_cost = float(actual_cost) if actual_cost is not None else float(est_cost)
 
         # Record usage & cost
         self.usage_history.append({
@@ -234,21 +295,34 @@ class ManusMiniEngine:
             "provider": exec_result.provider or model.provider,
             "model_id": exec_result.model_id or model.model_id,
             "estimated_cost": float(est_cost),
-            "prompt_tokens": exec_result.usage.get("prompt_tokens", 0),
-            "completion_tokens": exec_result.usage.get("completion_tokens", 0),
+            "charged_cost": charged_cost,
+            "actual_cost": float(actual_cost) if actual_cost is not None else None,
+            "cost_source": cost_source,
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+            "provider_request_id": exec_result.provider_request_id,
             "success": exec_result.success,
         })
-        self.budget_manager.record_usage(est_cost)
+        self.budget_manager.record_usage(charged_cost)
         self.current_manifest.budget_info.update(self.budget_manager.to_dict())
 
         if not exec_result.success:
             unit.status = "failed"
+            unit.metadata["attempt_count"] = attempts + 1
             self.current_manifest.errors.append(exec_result.error or "Execution failed")
             self.current_manifest.model_history.append({
-                "unit": unit.id,
+                "work_unit_id": unit.id,
                 "provider": exec_result.provider,
-                "model": exec_result.model_id,
-                "usage": exec_result.usage,
+                "model_id": exec_result.model_id,
+                "estimated_cost": float(est_cost),
+                "charged_cost": charged_cost,
+                "actual_cost": float(actual_cost) if actual_cost is not None else None,
+                "cost_source": cost_source,
+                "input_tokens": usage.get("input_tokens", 0),
+                "output_tokens": usage.get("output_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+                "provider_request_id": exec_result.provider_request_id,
                 "success": False,
                 "error": exec_result.error,
             })
@@ -258,13 +332,18 @@ class ManusMiniEngine:
 
         # --- SUCCESS: Create real artifact ---
         unit.status = "completed"
+        unit.metadata["attempt_count"] = attempts + 1
         self.current_manifest.add_completed_work(unit.id)
         self.current_manifest.progress["completed_units"] = len(self.current_manifest.completed_work)
 
         # Persist output as real artifact
         output_text = exec_result.output_text
         if output_text:
-            if unit.type == "code":
+            # Check for explicit target path in metadata
+            target_path = unit.metadata.get("target_path")
+            if target_path and self._is_safe_target(target_path):
+                artifact_path = self._write_to_target(target_path, output_text)
+            elif unit.type == "code":
                 artifact_path = self.artifact_manager.write_code(
                     self.current_manifest.task_id, f"output_{unit.id}", output_text
                 )
@@ -280,62 +359,67 @@ class ManusMiniEngine:
             unit.output_refs.append(artifact_path)
 
         self.current_manifest.model_history.append({
+            "work_unit_id": unit.id,
             "provider": exec_result.provider,
             "model_id": exec_result.model_id,
-            "usage": exec_result.usage,
+            "estimated_cost": float(est_cost),
+            "charged_cost": charged_cost,
+            "actual_cost": float(actual_cost) if actual_cost is not None else None,
+            "cost_source": cost_source,
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+            "provider_request_id": exec_result.provider_request_id,
             "success": True,
+            "error": "",
         })
 
         self._persist_context_to_manifest(self.current_manifest)
         self.checkpoint_manager.save_checkpoint(self.current_manifest)
         return True
 
+    def _normalize_usage(self, usage: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize provider usage to canonical internal model."""
+        input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0))
+        output_tokens = usage.get("output_tokens", usage.get("completion_tokens", 0))
+        total = usage.get("total_tokens", input_tokens + output_tokens)
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total,
+        }
+
+    def _is_safe_target(self, target_path: str) -> bool:
+        """Prevent path traversal and absolute escapes."""
+        if os.path.isabs(target_path):
+            return False
+        if ".." in target_path.split(os.sep):
+            return False
+        return True
+
+    def _write_to_target(self, target_path: str, content: str) -> str:
+        """Write to a safe relative target path."""
+        os.makedirs(os.path.dirname(target_path) or ".", exist_ok=True)
+        with open(target_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return os.path.abspath(target_path)
+
     def _build_execution_prompt(self, unit: WorkUnit) -> str:
-        """Build a meaningful execution prompt containing context and instructions."""
+        """Build a meaningful execution prompt containing real context and instructions."""
         parts = []
         parts.append(f"User Goal: {self.current_context.user_prompt if self.current_context else '(unknown)'}")
         parts.append(f"Work Unit: {unit.id} ({unit.type})")
         parts.append(f"")
         parts.append(f"Instruction: {unit.instruction}")
 
-        if unit.context_refs and self.current_context:
-            if "repository_context" in unit.context_refs and self.current_context.repository_context:
-                repo_ctx = self.current_context.repository_context
+        # Resolve real context content
+        if self.current_context:
+            resolved = self.context_resolver.resolve_context(self.current_context, unit)
+            if resolved:
                 parts.append(f"")
-                parts.append(f"Repository Context:")
-                parts.append(f"- Files: {repo_ctx.get('file_count', '?')}")
-                if repo_ctx.get('files_top_level'):
-                    parts.append(f"- Top-level files: {', '.join(repo_ctx['files_top_level'][:10])}")
-                if repo_ctx.get('manifests'):
-                    for mname, mcontent in list(repo_ctx['manifests'].items())[:3]:
-                        parts.append(f"- {mname}: {mcontent[:500]}")
-                if repo_ctx.get('entry_point_candidates'):
-                    parts.append(f"- Entry points: {', '.join(repo_ctx['entry_point_candidates'])}")
-
-            if "document_context" in unit.context_refs and self.current_context.document_context:
-                for path, info in self.current_context.document_context.items():
-                    parts.append(f"")
-                    parts.append(f"Document: {path}")
-                    parts.append(f"Type: {info.get('type', info.get('extension', 'document'))}")
-                    parts.append(f"Size: {info.get('size_bytes', '?')} bytes")
-                    parts.append(f"SHA-256: {info.get('sha256', '?')}")
-                    if info.get('chunk_count'):
-                        parts.append(f"Chunks: {info.get('chunk_count')}")
-                    if info.get('page_count'):
-                        parts.append(f"Pages: {info.get('page_count')}")
-
-            if "structured_context" in unit.context_refs and self.current_context.structured_context:
-                for path, info in self.current_context.structured_context.items():
-                    parts.append(f"")
-                    parts.append(f"Structured Data: {path}")
-                    if info.get('headers'):
-                        parts.append(f"Headers: {', '.join(info['headers'])}")
-                    if info.get('row_count'):
-                        parts.append(f"Rows: {info.get('row_count')} columns: {info.get('column_count')}")
-                    if info.get('record_count'):
-                        parts.append(f"Records: {info.get('record_count')}")
-                    if info.get('top_level_keys'):
-                        parts.append(f"Keys: {', '.join(info['top_level_keys'][:10])}")
+                parts.append(f"--- RELEVANT CONTEXT ---")
+                parts.append(resolved)
+                parts.append(f"--- END CONTEXT ---")
 
         if unit.dependencies:
             parts.append(f"")
@@ -367,12 +451,15 @@ class ManusMiniEngine:
             if completed >= total or (all(
                 u.status == "completed" for u in self.work_units if not u.optional
             )):
-                manifest.set_status("completed")
+                manifest.set_status("COMPLETED")
+                manifest.reason = "NONE"
                 reason = "COMPLETED"
-            elif manifest.status in ["paused_budget", "blocked", "failed"]:
-                reason = f"{manifest.status.upper()}"
+            elif manifest.status in ["BLOCKED", "FAILED"]:
+                reason = f"{manifest.status}"
             else:
-                manifest.set_status("partially_completed")
+                manifest.set_status("PARTIALLY_COMPLETED")
+                if not manifest.reason:
+                    manifest.reason = "BUDGET_LIMIT"
                 reason = "PARTIALLY_COMPLETED"
         else:
             reason = "FAILED_NO_MANIFEST"

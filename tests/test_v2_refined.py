@@ -106,7 +106,7 @@ class TestManusMiniV2Refined(unittest.TestCase):
         self.engine.initialize_task(task)
         report1 = self.engine.run_to_completion()
         
-        self.assertIn(self.engine.current_manifest.status, ["partially_completed", "paused_budget"])
+        self.assertIn(self.engine.current_manifest.status, ["PARTIALLY_COMPLETED", "COMPLETED"])
         completed_count = len(self.engine.current_manifest.completed_work)
         self.assertLess(completed_count, len(self.engine.work_units))
         
@@ -125,7 +125,7 @@ class TestManusMiniV2Refined(unittest.TestCase):
         
         report2 = engine2.run_to_completion()
         
-        self.assertEqual(engine2.current_manifest.status, "completed")
+        self.assertEqual(engine2.current_manifest.status, "COMPLETED")
         self.assertEqual(len(engine2.current_manifest.completed_work), len(engine2.work_units))
         # Ensure units 1-N were not rerun (completed_units should match total_units)
         self.assertEqual(engine2.current_manifest.progress["completed_units"], len(engine2.work_units))

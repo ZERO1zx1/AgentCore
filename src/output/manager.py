@@ -11,7 +11,11 @@ class OutputManager:
     def generate_report(manifest: TaskManifest, reason: str = "COMPLETED") -> str:
         report = []
         report.append(f"# Task Execution Report: {manifest.task_id}")
-        report.append(f"**Status**: {manifest.status.upper()} — {reason}")
+        status = manifest.status.upper()
+        reason_code = getattr(manifest, "reason", "NONE")
+        report.append(f"**Status**: {status} — {reason}")
+        if reason_code and reason_code != "NONE":
+            report.append(f"**Reason**: {reason_code}")
         report.append(f"**Execution Mode**: {manifest.execution_mode}")
         report.append(f"**Updated At**: {manifest.updated_at}\n")
 

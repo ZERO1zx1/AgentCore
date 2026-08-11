@@ -83,6 +83,30 @@ class RepositoryProcessor:
         }
 
     @staticmethod
+    def fingerprint_repository(repo_path: str = ".") -> str:
+        """Deterministic repository fingerprint from relevant source files.
+        Excludes .git, .manus-mini, __pycache__, node_modules, venv, build artifacts.
+        """
+        import hashlib
+        info = RepositoryProcessor.inspect(repo_path)
+        tree = sorted(info.get("file_tree", []))
+        hasher = hashlib.sha256()
+        for rel in tree:
+            full = os.path.join(repo_path, rel)
+            if not os.path.isfile(full):
+                continue
+            try:
+                with open(full, "rb") as f:
+                    file_hash = hashlib.sha256(f.read(65536)).hexdigest()
+            except Exception:
+                continue
+            hasher.update(rel.encode("utf-8"))
+            hasher.update(b"\0")
+            hasher.update(file_hash.encode("utf-8"))
+            hasher.update(b"\0")
+        return hasher.hexdigest()
+
+    @staticmethod
     def relevant_source_files(repo_path: str, max_files: int = 20) -> List[str]:
         """Select a bounded set of relevant source files for executor context."""
         info = RepositoryProcessor.inspect(repo_path)
