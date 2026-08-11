@@ -1,39 +1,31 @@
-# Credit-Safe Agent
+# Manus Mini
 
-> **Do the work. Spend intelligently. Preserve progress. Resume instead of restart.**
+> **Understand the task. Choose the right execution strategy. Spend intelligently. Produce real work. Preserve progress. Resume instead of restart.**
 
-The **Credit-Safe Agent** is a production-style, budget-aware autonomous execution engine designed to prevent catastrophic budget exhaustion during LLM-driven agentic workflows. Built upon a modular architecture, it combines intelligent cost estimation, multi-tier capability-aware model routing, rigorous checkpointing, task manifest persistence, and emergency reserve protection.
+**Manus Mini** is a universal autonomous work and builder framework designed for high-efficiency, budget-aware execution. It evolves the "Credit-Safe" concept into a comprehensive agentic engine capable of handling software repositories, large documents, structured data, and multimodal media while protecting the user's execution budget.
 
 ---
 
-## The Problem
+## Core Execution Modes
 
-Traditional autonomous agents operate without budget awareness. When an agent processes large repositories, massive PDF documents, or complex multi-step workflows, it often exhausts its execution credits mid-task. As a result, all previously completed work, intermediate extractions, and partial generations are lost, forcing the user to pay again from scratch.
+Manus Mini provides three primary execution strategies to suit different task requirements:
+
+| Mode | Philosophy | Best For |
+| :--- | :--- | :--- |
+| **AUTO** | Dynamic Efficiency | General-purpose tasks and daily workflows |
+| **FULL** | Maximum Quality | Complex engineering and high-stakes research |
+| **CREDIT_SAFE** | Budget Protection | Large-scale processing and cost-constrained tasks |
 
 ---
 
 ## Key Features
 
-- **Budget State Machine**: Dynamically manages execution states (`NORMAL`, `CONSERVE`, `CRITICAL`, `EMERGENCY`, `EXHAUSTED`) based on starting budget, remaining balance, and estimated operation costs.
-- **Emergency Output Reserve**: Secures a dedicated budget percentage (default 15%) solely for saving results, writing checkpoints, and generating resume manifests.
-- **Capability-Aware Multi-Tier Model Router**: Selects the cheapest model capable of reliably completing the operation across tiers (`tier0` local deterministic up to `tier4` advanced reasoning/multimodal).
-- **Persistent Task Manifest & Checkpoint Manager**: Checkpoints completed atomic units and maintains a structured task manifest for seamless resumption.
-- **Graceful Budget Exhaustion**: Stops expensive operations safely when budget thresholds are breached, preserving partial outputs and exact resume points.
-
----
-
-## Architecture Overview
-
-```
-User Request --> Input Analyzer --> Task Planner --> Cost Estimator --> Budget Manager
-                                                                          |
-                                       +----------------------------------+
-                                       v
-                             Budget Watcher State:
-                             [NORMAL] --> [CONSERVE] --> [CRITICAL] --> [EMERGENCY] --> [EXHAUSTED]
-                                                                                            |
-                                                                                Graceful Exit & Resume Manifest
-```
+- **Universal Task Engine**: Orchestrates complex multi-step workflows with built-in planning and scheduling.
+- **Budget State Machine**: Dynamically manages states from `NORMAL` to `EXHAUSTED` with emergency reserve protection.
+- **Capability-Aware Router**: Selects the most cost-effective capable model tier (`tier0` to `tier4`) for every operation.
+- **Atomic Checkpointing**: Ensures every meaningful unit of work is persisted, enabling seamless task resumption.
+- **Code-First Delivery**: Prioritizes actual implementation files and working software over conversational prose.
+- **Multimodal Routing**: Budget-aware processors for PDF, images, video, and structured data.
 
 ---
 
@@ -47,32 +39,46 @@ manus-mini-skill/
 |   |-- code-engineer/SKILL.md
 |   `-- credit-safe-agent/SKILL.md
 |-- src/
-|   |-- core/
-|   |-- budget/
-|   |   `-- state.py
-|   |-- models/
-|   |   `-- router.py
-|   |-- checkpoint/
-|   |   |-- manifest.py
-|   |   `-- manager.py
-|   `-- output/
-|       `-- manager.py
+|   |-- core/ (Engine, Task, Modes)
+|   |-- budget/ (State, Manager, Estimator)
+|   |-- models/ (Registry, Router)
+|   |-- ingestion/ (PDF, Repository, Multimodal)
+|   |-- checkpoint/ (Manifest, Manager)
+|   `-- output/ (Report, Rescue)
 `-- tests/
-    `-- test_credit_safe.py
 ```
 
 ---
 
-## Quick Start & Testing
+## Quick Start
 
-Run the test suite to verify budget state transitions, emergency reserve protection, model routing, and checkpoint persistence:
+Manus Mini is designed to be both an integrated framework and a standalone library for budget-aware execution.
 
+### Run Tests
 ```bash
 python3 -m unittest discover tests
+```
+
+### Basic Usage
+```python
+from src.core.engine import ManusMiniEngine
+from src.core.task import TaskInput
+from src.core.modes import ExecutionMode
+
+engine = ManusMiniEngine()
+task = TaskInput(
+    prompt="Analyze this repository",
+    task_id="task_001",
+    execution_mode=ExecutionMode.AUTO,
+    budget=10.0
+)
+
+engine.initialize_task(task)
+engine.execute_step("inspect", "parse", 0.1)
+engine.finalize()
 ```
 
 ---
 
 ## License
-
 MIT License.

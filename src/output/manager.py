@@ -17,7 +17,7 @@ class OutputManager:
         report.append("## Completed Work")
         if manifest.completed_work:
             for item in manifest.completed_work:
-                report.append(- {item})
+                report.append(f"- {item}")
         else:
             report.append("_No completed units recorded._")
 
@@ -50,7 +50,7 @@ class OutputManager:
         return "\n".join(report)
 
     @staticmethod
-    def save_report(manifest: TaskManifest, output_dir: str = "/home/ubuntu/manus-mini-skill/outputs") -> str:
+    def save_report(manifest: TaskManifest, output_dir: str = ".manus-mini/outputs") -> str:
         os.makedirs(output_dir, exist_ok=True)
         path = os.path.join(output_dir, f"{manifest.task_id}_report.md")
         content = OutputManager.generate_report(manifest)
