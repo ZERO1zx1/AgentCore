@@ -6,7 +6,9 @@ class TestPlannerScheduler(unittest.TestCase):
         units = Planner.plan_task("Test prompt", ["file.pdf"])
         ids = [u.id for u in units]
         self.assertIn("unit_inspect", ids)
-        self.assertIn("unit_core_work", ids)
+        # New rule-based planner generates PDF plan for .pdf files
+        self.assertIn("unit_analysis", ids)
+        self.assertIn("unit_aggregate", ids)
 
     def test_scheduling_priorities(self):
         units = [

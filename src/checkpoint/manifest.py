@@ -49,6 +49,8 @@ class TaskManifest:
         self.pending_work: List[str] = []
         self.next_actions: List[str] = []
         self.errors: List[str] = []
+        self.task_context_dict: Dict[str, Any] = {}
+        self.work_units_data: List[Dict[str, Any]] = []
         self.updated_at = datetime.now(UTC).isoformat()
         self.created_at = self.updated_at
 
@@ -89,7 +91,9 @@ class TaskManifest:
             "completed_work": self.completed_work,
             "pending_work": self.pending_work,
             "errors": self.errors,
-            "next_actions": self.next_actions
+            "next_actions": self.next_actions,
+            "task_context": self.task_context_dict,
+            "work_units": self.work_units_data
         }
 
     def save(self, filepath: str):
@@ -127,5 +131,7 @@ class TaskManifest:
         manifest.pending_work = data.get("pending_work", [])
         manifest.errors = data.get("errors", [])
         manifest.next_actions = data.get("next_actions", [])
+        manifest.task_context_dict = data.get("task_context", {})
+        manifest.work_units_data = data.get("work_units", [])
         manifest.updated_at = data.get("updated_at", datetime.now(UTC).isoformat())
         return manifest

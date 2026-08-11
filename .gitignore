@@ -1,8 +1,17 @@
 __pycache__/
 *.py[cod]
+*.pyo
 .manus-mini/
 .test_manus_mini/
+.test_manus_mini_refined/
+.test_pdf_processor/
+.test_repo_processor/
 .pytest_cache/
 .venv/
 env/
 .env
+*.log
+temporary test PDFs/
+runtime artifacts/
+secrets/
+API keys/
