@@ -1,5 +1,5 @@
-"""Model Registry and Specification for Manus Mini.
-Defines model capabilities, pricing, and tiers.
+"""Model Registry and Specification for Manus Mini v2.
+Injectable model specs with capability filtering before cost optimization.
 """
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -13,38 +13,44 @@ class ModelSpec:
     input_price: Decimal  # per 1k tokens
     output_price: Decimal # per 1k tokens
     capabilities: List[str] = field(default_factory=list)
-    context_size: Optional[int] = None
+    input_modalities: List[str] = field(default_factory=lambda: ["text"])
+    output_modalities: List[str] = field(default_factory=lambda: ["text"])
+    context_size: Optional[int] = 128000
     enabled: bool = True
 
 class ModelRegistry:
-    _MODELS: Dict[str, ModelSpec] = {
-        "tier0": ModelSpec("local", "deterministic", "tier0", Decimal("0"), Decimal("0"), ["parsing", "deterministic"]),
-        "tier1": ModelSpec("openai", "gpt-4o-mini", "tier1", Decimal("0.00015"), Decimal("0.0006"), ["summarization", "classification"]),
-        "tier2": ModelSpec("openai", "gpt-4o", "tier2", Decimal("0.005"), Decimal("0.015"), ["coding", "standard_reasoning"]),
-        "tier3": ModelSpec("openai", "o1-preview", "tier3", Decimal("0.015"), Decimal("0.06"), ["complex_debugging", "architecture"]),
-        "tier4": ModelSpec("openai", "o1", "tier4", Decimal("0.015"), Decimal("0.06"), ["advanced_reasoning", "multimodal"])
-    }
-
-    @classmethod
-    def get_model(cls, tier: str) -> Optional[ModelSpec]:
-        return cls._MODELS.get(tier)
-
-    @classmethod
-    def get_model_for_task(cls, task_type: str, budget_state: str = "NORMAL") -> Dict[str, Any]:
-        # Logic to select tier based on task and budget
-        if task_type in ["parse", "classify"]:
-            tier = "tier1"
-        elif task_type in ["code", "debug"]:
-            tier = "tier3" if budget_state == "NORMAL" else "tier2"
-        elif task_type in ["vision", "complex"]:
-            tier = "tier4" if budget_state == "NORMAL" else "tier3"
-        else:
-            tier = "tier2"
-        
-        spec = cls.get_model(tier)
-        return {
-            "id": spec.model_id,
-            "provider": spec.provider,
-            "cost_per_token": float((spec.input_price + spec.output_price) / 2000), # Rough avg
-            "capabilities": spec.capabilities
+    def __init__(self):
+        self._models: Dict[str, ModelSpec] = {
+            "fake-local": ModelSpec("local", "fake-local", "tier0", Decimal("0"), Decimal("0"), ["parsing", "deterministic"], ["text"], ["text"]),
+            "fake-economy": ModelSpec("fake", "fake-economy", "tier1", Decimal("0.0001"), Decimal("0.0003"), ["summarization", "classification", "text"], ["text"], ["text"]),
+            "fake-standard": ModelSpec("fake", "fake-standard", "tier2", Decimal("0.001"), Decimal("0.003"), ["coding", "standard_reasoning", "text"], ["text"], ["text"]),
+            "fake-strong": ModelSpec("fake", "fake-strong", "tier3", Decimal("0.005"), Decimal("0.015"), ["complex_debugging", "architecture", "coding", "text"], ["text"], ["text"]),
+            "fake-vision": ModelSpec("fake", "fake-vision", "tier4", Decimal("0.01"), Decimal("0.03"), ["multimodal", "vision", "text"], ["text", "image"], ["text"]),
         }
+
+    def register_model(self, name: str, spec: ModelSpec):
+        self._models[name] = spec
+
+    def get_model(self, name: str) -> Optional[ModelSpec]:
+        return self._models.get(name)
+
+    def select_best_model(self, required_capabilities: List[str], preferred_tier: str = "tier2") -> Optional[ModelSpec]:
+        # 1. Capability filtering BEFORE cost optimization
+        capable_models = []
+        for model in self._models.values():
+            if not model.enabled:
+                continue
+            if all(cap in model.capabilities for cap in required_capabilities):
+                capable_models.append(model)
+
+        if not capable_models:
+            return None
+
+        # 2. Match preferred tier or fallback to cheapest capable
+        tier_matches = [m for m in capable_models if m.tier == preferred_tier]
+        if tier_matches:
+            return tier_matches[0]
+
+        # Fallback to cheapest among capable models (by avg price)
+        capable_models.sort(key=lambda m: (m.input_price + m.output_price))
+        return capable_models[0]

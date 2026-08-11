@@ -2,7 +2,7 @@
 
 > **Understand the task. Choose the right execution strategy. Spend intelligently. Produce real work. Preserve progress. Resume instead of restart.**
 
-**Manus Mini** is a universal autonomous work and builder framework designed for high-efficiency, budget-aware execution. It evolves the "Credit-Safe" concept into a comprehensive agentic engine capable of handling software repositories, large documents, structured data, and multimodal media while protecting the user's execution budget.
+**Manus Mini** is a universal autonomous work and builder framework designed for high-efficiency, budget-aware execution. It implements a robust agentic engine capable of handling software repositories, large documents, and structured data while protecting the user's execution budget through incremental checkpointing and capability-aware routing.
 
 ---
 
@@ -18,45 +18,36 @@ Manus Mini provides three primary execution strategies to suit different task re
 
 ---
 
-## Key Features
+## Support Matrix
 
-- **Universal Task Engine**: Orchestrates complex multi-step workflows with built-in planning and scheduling.
-- **Budget State Machine**: Dynamically manages states from `NORMAL` to `EXHAUSTED` with emergency reserve protection.
-- **Capability-Aware Router**: Selects the most cost-effective capable model tier (`tier0` to `tier4`) for every operation.
-- **Atomic Checkpointing**: Ensures every meaningful unit of work is persisted, enabling seamless task resumption.
-- **Code-First Delivery**: Prioritizes actual implementation files and working software over conversational prose.
-- **Multimodal Routing**: Budget-aware processors for PDF, images, video, and structured data.
+| Capability | Status | Implementation |
+| :--- | :--- | :--- |
+| **Text Processing** | Supported | Deterministic Python & LLM Routing |
+| **PDF Processing** | Supported | Real parsing via `pypdf`, chunking, and hashing |
+| **Repository Analysis** | Supported | File tree inspection, manifest detection |
+| **Budget Safety** | Supported | Decimal-safe accounting, P0-P4 prioritization |
+| **Task Resumption** | Supported | SHA-256 fingerprinting, V2 Task Manifests |
+| **Image Analysis** | Experimental | Requires configured multimodal provider |
+| **Video Analysis** | Planned | Requires external multimodal provider |
 
 ---
 
-## Project Structure
+## Key Features
 
-```
-manus-mini-skill/
-|-- README.md
-|-- SKILL.md
-|-- skills/
-|   |-- code-engineer/SKILL.md
-|   `-- credit-safe-agent/SKILL.md
-|-- src/
-|   |-- core/ (Engine, Task, Modes)
-|   |-- budget/ (State, Manager, Estimator)
-|   |-- models/ (Registry, Router)
-|   |-- ingestion/ (PDF, Repository, Multimodal)
-|   |-- checkpoint/ (Manifest, Manager)
-|   `-- output/ (Report, Rescue)
-`-- tests/
-```
+- **Universal Task Engine**: Orchestrates complex multi-step workflows with a real Planner and Scheduler.
+- **Budget State Machine**: Dynamically manages states from `NORMAL` to `EXHAUSTED` with a 15% emergency reserve.
+- **Capability-Aware Router**: Selects the most cost-effective capable model tier for every operation.
+- **Atomic Checkpointing**: Ensures every meaningful unit of work is persisted, enabling seamless task resumption.
+- **Decimal-Safe Accounting**: Prevents floating-point errors in budget tracking across task resumes.
+- **Injectable Registry**: Support for custom model configurations and fake executors for testing.
 
 ---
 
 ## Quick Start
 
-Manus Mini is designed to be both an integrated framework and a standalone library for budget-aware execution.
-
-### Run Tests
+### Run Validation Suite
 ```bash
-python3 -m unittest discover tests
+python3 -m unittest discover tests -v
 ```
 
 ### Basic Usage
@@ -65,6 +56,7 @@ from src.core.engine import ManusMiniEngine
 from src.core.task import TaskInput
 from src.core.modes import ExecutionMode
 
+# Initialize with default FakeExecutor for safety
 engine = ManusMiniEngine()
 task = TaskInput(
     prompt="Analyze this repository",
@@ -74,8 +66,7 @@ task = TaskInput(
 )
 
 engine.initialize_task(task)
-engine.execute_step("inspect", "parse", 0.1)
-engine.finalize()
+engine.run_to_completion()
 ```
 
 ---
