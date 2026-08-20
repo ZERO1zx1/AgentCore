@@ -13,6 +13,12 @@ temporary test PDFs/
 runtime artifacts/
 secrets/
 API keys/
+opencode
 .opencode/
 .agent-memory
 opencode.jsonc
+.claude/
+.agents/
+.cursor/
+.windsurf/
+.gemini/
