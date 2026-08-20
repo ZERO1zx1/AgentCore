@@ -10,7 +10,7 @@ from src.core.modes import ExecutionMode
 from src.core.executor import FakeExecutor
 
 
-class TestManusMiniV2Refined(unittest.TestCase):
+class TestAgentCoreV2Refined(unittest.TestCase):
     def setUp(self):
         self.test_dir = ".test_agentcore_refined"
         if os.path.exists(self.test_dir):

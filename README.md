@@ -184,7 +184,7 @@ AgentCore was previously developed under the name "Manus Mini".
 
 Existing imports or runtime paths may remain temporarily supported for backward compatibility:
 
-- `from src.core.engine import ManusMiniEngine` still works (alias for `AgentCoreEngine`)
+- `from src.core.engine import AgentCoreEngine` is the standard import
 - Legacy `.manus-mini/` runtime data is not deleted; new tasks use `.agentcore/`
 
 ---

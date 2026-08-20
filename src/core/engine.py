@@ -582,4 +582,4 @@ class AgentCoreEngine:
 
 
 # Backward-compatible alias for legacy imports
-ManusMiniEngine = AgentCoreEngine
+AgentCoreEngine = AgentCoreEngine

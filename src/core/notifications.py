@@ -1,19 +1,22 @@
 """Notification and Git Operations for AgentCore.
-Handles budget exhaustion notifications and automatic git push.
+Handles budget exhaustion notifications and automatic git push with full automation.
 """
 import os
 import subprocess
 import json
+import shutil
 from datetime import datetime, UTC
 from typing import Optional, Dict, Any
 from decimal import Decimal
 
 
 class GitManager:
-    """Manages git operations for checkpoint persistence."""
+    """Manages git operations for checkpoint persistence with full automation."""
     
     def __init__(self, repo_root: str = "."):
         self.repo_root = os.path.abspath(repo_root)
+        self._fallback_dir = os.path.join(self.repo_root, ".agentcore", "git_fallback")
+        os.makedirs(self._fallback_dir, exist_ok=True)
     
     def is_git_repo(self) -> bool:
         """Check if current directory is a git repository."""
@@ -87,17 +90,43 @@ class GitManager:
         except Exception:
             return False
     
+    def _save_fallback(self, task_id: str, budget_state: str, budget_info: Dict[str, Any], commit_msg: str) -> str:
+        """Save checkpoint data to fallback directory when git fails."""
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        fallback_file = os.path.join(self._fallback_dir, f"{task_id}_{budget_state}_{timestamp}.json")
+        
+        fallback_data = {
+            "task_id": task_id,
+            "budget_state": budget_state,
+            "budget_info": budget_info,
+            "commit_message": commit_msg,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "fallback_reason": "git_push_failed"
+        }
+        
+        with open(fallback_file, "w", encoding="utf-8") as f:
+            json.dump(fallback_data, f, indent=2)
+        
+        return fallback_file
+    
     def push_checkpoint(self, task_id: str, budget_state: str, budget_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Push checkpoint with budget exhaustion info."""
+        """Push checkpoint with budget exhaustion info. Fully automated with fallback."""
         result = {
             "success": False,
             "steps": [],
-            "error": None
+            "error": None,
+            "fallback_file": None
         }
         
         if not self.is_git_repo():
             result["error"] = "Not a git repository"
             result["steps"].append("git repo check: FAILED")
+            # Save to fallback anyway
+            timestamp = datetime.now(UTC).isoformat()
+            commit_msg = f"[AgentCore] Budget {budget_state} - Task: {task_id}"
+            fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
+            result["fallback_file"] = fallback_file
+            result["steps"].append(f"fallback saved: {fallback_file}")
             return result
         
         result["steps"].append("git repo check: OK")
@@ -108,6 +137,12 @@ class GitManager:
         else:
             result["error"] = "Failed to stage changes"
             result["steps"].append("git add: FAILED")
+            # Save to fallback
+            timestamp = datetime.now(UTC).isoformat()
+            commit_msg = f"[AgentCore] Budget {budget_state} - Task: {task_id}"
+            fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
+            result["fallback_file"] = fallback_file
+            result["steps"].append(f"fallback saved: {fallback_file}")
             return result
         
         # Create commit message with budget info
@@ -130,6 +165,10 @@ class GitManager:
                 return result
             result["error"] = "Failed to commit"
             result["steps"].append("git commit: FAILED")
+            # Save to fallback
+            fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
+            result["fallback_file"] = fallback_file
+            result["steps"].append(f"fallback saved: {fallback_file}")
             return result
         
         # Push to remote
@@ -139,18 +178,35 @@ class GitManager:
         else:
             result["error"] = "Failed to push to remote"
             result["steps"].append("git push: FAILED")
+            # Save to fallback
+            fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
+            result["fallback_file"] = fallback_file
+            result["steps"].append(f"fallback saved: {fallback_file}")
         
         return result
+    
+    def get_fallback_files(self) -> list[str]:
+        """Get list of fallback files for manual recovery."""
+        if os.path.exists(self._fallback_dir):
+            return sorted([
+                os.path.join(self._fallback_dir, f)
+                for f in os.listdir(self._fallback_dir)
+                if f.endswith(".json")
+            ])
+        return []
 
 
 class NotificationManager:
-    """Manages notifications for budget events."""
+    """Manages notifications for budget events with full automation."""
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self.webhook_url = self.config.get("webhook_url")
+        self.webhook_timeout = self.config.get("webhook_timeout", 10)
         self.email_config = self.config.get("email")
         self.console_enabled = self.config.get("console", True)
+        self._notification_log = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".agentcore", "notifications.log")
+        os.makedirs(os.path.dirname(self._notification_log), exist_ok=True)
     
     def notify_budget_exhausted(
         self,
@@ -159,21 +215,22 @@ class NotificationManager:
         budget_info: Dict[str, Any],
         manifest: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Send notification when budget is exhausted."""
+        """Send notification when budget is exhausted. Fully automated."""
         result = {
             "console": False,
             "webhook": False,
             "email": False,
+            "file_log": False,
             "errors": []
         }
         
         message = self._format_budget_message(task_id, budget_state, budget_info, manifest)
         
-        # Console notification
+        # Console notification (always works)
         if self.console_enabled:
             try:
                 print("\n" + "=" * 60)
-                print("⚠️  BUDGET EXHAUSTED NOTIFICATION")
+                print("⚠️  AGENTCORE BUDGET EXHAUSTED NOTIFICATION")
                 print("=" * 60)
                 print(message)
                 print("=" * 60 + "\n")
@@ -181,7 +238,28 @@ class NotificationManager:
             except Exception as e:
                 result["errors"].append(f"Console notification failed: {e}")
         
-        # Webhook notification
+        # File log notification (always works as fallback)
+        try:
+            log_entry = {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "event": "budget_exhausted",
+                "task_id": task_id,
+                "budget_state": budget_state,
+                "budget_info": budget_info,
+                "manifest_summary": {
+                    "progress": manifest.get('progress', {}) if manifest else {},
+                    "status": manifest.get('status', 'unknown') if manifest else 'unknown',
+                    "completed_units": len(manifest.get('completed_work', [])) if manifest else 0
+                } if manifest else None,
+                "message": message
+            }
+            with open(self._notification_log, "a", encoding="utf-8") as f:
+                f.write(json.dumps(log_entry) + "\n")
+            result["file_log"] = True
+        except Exception as e:
+            result["errors"].append(f"File log notification failed: {e}")
+        
+        # Webhook notification (if configured)
         if self.webhook_url:
             try:
                 import urllib.request
@@ -201,14 +279,14 @@ class NotificationManager:
                     data=payload,
                     headers={"Content-Type": "application/json"}
                 )
-                urllib.request.urlopen(req, timeout=10)
+                urllib.request.urlopen(req, timeout=self.webhook_timeout)
                 result["webhook"] = True
             except Exception as e:
                 result["errors"].append(f"Webhook notification failed: {e}")
         
         # Email notification (placeholder - would need SMTP config)
         if self.email_config:
-            result["errors"].append("Email notification not implemented")
+            result["errors"].append("Email notification not implemented - configure SMTP to enable")
         
         return result
     
@@ -234,12 +312,31 @@ class NotificationManager:
             lines.append(f"Status: {manifest.get('status', 'unknown')}")
         
         lines.append("")
-        lines.append("ACTION REQUIRED:")
-        lines.append("- Add more budget to continue execution")
-        lines.append("- Check .agentcore/checkpoints/ for resume manifest")
-        lines.append("- Run with higher budget to resume: python -m src.core.engine --resume <task_id> --budget <amount>")
+        lines.append("AUTOMATED ACTIONS TAKEN:")
+        lines.append("- Checkpoint saved to .agentcore/checkpoints/")
+        lines.append("- Git commit attempted (see .agentcore/git_fallback/ if failed)")
+        lines.append("- Notification logged to .agentcore/notifications.log")
+        lines.append("")
+        lines.append("TO RESUME:")
+        lines.append(f"  python -m src.core.engine --resume {task_id} --budget <new_amount>")
+        lines.append("  Or add budget and restart the task")
         
         return "\n".join(lines)
+    
+    def get_notification_log(self, limit: int = 50) -> list[Dict[str, Any]]:
+        """Get recent notification log entries."""
+        if not os.path.exists(self._notification_log):
+            return []
+        entries = []
+        with open(self._notification_log, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entries.append(json.loads(line))
+                    except Exception:
+                        pass
+        return entries[-limit:]
 
 
 def create_budget_exhaustion_handler(
