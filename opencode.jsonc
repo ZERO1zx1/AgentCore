@@ -1,0 +1,48 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "project": {
+    "name": "AgentCore",
+    "description": "Provider-agnostic, budget-aware AI agent execution framework"
+  },
+  "permissions": {
+    "bash": {
+      "allow": [
+        "python*",
+        "pip*",
+        "git status",
+        "git diff",
+        "git add*",
+        "git commit*",
+        "git push*",
+        "git log*"
+      ]
+    },
+    "read": {
+      "allow": ["**"]
+    },
+    "write": {
+      "allow": ["**/*.py", "**/*.md", "**/*.json", "**/*.txt", "**/*.jsonc"]
+    },
+    "edit": {
+      "allow": ["**/*.py", "**/*.md", "**/*.json", "**/*.txt", "**/*.jsonc"]
+    }
+  },
+  "skills": {
+    "enabled": [
+      "code-engineer",
+      "credit-safe-agent"
+    ]
+  },
+  "commands": {
+    "enabled": [
+      "agentcore",
+      "status",
+      "resume",
+      "checkpoint",
+      "test"
+    ]
+  },
+  "agent": {
+    "instructions": "AGENTS.md"
+  }
+}
