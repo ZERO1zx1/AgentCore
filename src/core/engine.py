@@ -23,6 +23,7 @@ from src.output.manager import OutputManager
 from src.output.artifact_manager import ArtifactManager
 from src.ingestion.router import InputRouter
 from src.ingestion.repository import RepositoryProcessor
+from src.core.notifications import GitManager, NotificationManager, create_budget_exhaustion_handler
 import json
 import os
 
@@ -35,6 +36,8 @@ class AgentCoreEngine:
         model_registry: Optional[ModelRegistry] = None,
         artifact_manager: Optional[ArtifactManager] = None,
         runtime_config: Optional[RuntimeConfig] = None,
+        repo_root: str = ".",
+        notification_config: Optional[Dict[str, Any]] = None,
     ):
         self.runtime_config = runtime_config or RuntimeConfig()
         self.checkpoint_manager = CheckpointManager(checkpoint_dir or self.runtime_config.checkpoint_root)
@@ -47,6 +50,10 @@ class AgentCoreEngine:
         self.current_context: Optional[TaskContext] = None
         self.work_units: List[WorkUnit] = []
         self.usage_history: List[Dict[str, Any]] = []
+        
+        # Budget exhaustion handlers
+        self.git_manager = GitManager(repo_root)
+        self.notification_manager = NotificationManager(notification_config)
 
     def initialize_task(self, task_input: TaskInput) -> TaskManifest:
         if task_input.resume_task_id:
@@ -274,17 +281,47 @@ class AgentCoreEngine:
         if invalidated:
             self.current_manifest.reason = "SOURCE_CHANGED"
 
+    def _handle_budget_exhaustion(self, budget_state: BudgetState):
+        """Handle budget exhaustion: save checkpoint, push to git, notify."""
+        self.current_manifest.set_status("PARTIALLY_COMPLETED")
+        self.current_manifest.reason = "BUDGET_LIMIT"
+        self.current_manifest.errors.append(f"Budget reached {budget_state.value} state.")
+        self._persist_context_to_manifest(self.current_manifest)
+        self.checkpoint_manager.save_checkpoint(self.current_manifest)
+        
+        # Push checkpoint to git
+        git_result = self.git_manager.push_checkpoint(
+            task_id=self.current_manifest.task_id,
+            budget_state=budget_state.value,
+            budget_info=self.budget_manager.to_dict()
+        )
+        if git_result["success"]:
+            self.current_manifest.errors.append(f"Git push: {', '.join(git_result['steps'])}")
+        else:
+            self.current_manifest.errors.append(f"Git push failed: {git_result['error']}; Steps: {', '.join(git_result['steps'])}")
+        
+        # Send notification
+        notify_result = self.notification_manager.notify_budget_exhausted(
+            task_id=self.current_manifest.task_id,
+            budget_state=budget_state.value,
+            budget_info=self.budget_manager.to_dict(),
+            manifest=self.current_manifest.to_dict()
+        )
+        if notify_result["console"] or notify_result["webhook"]:
+            self.current_manifest.errors.append("Notification sent: console=True" if notify_result["console"] else "")
+            if notify_result["webhook"]:
+                self.current_manifest.errors.append("Notification sent: webhook=True")
+        if notify_result["errors"]:
+            for err in notify_result["errors"]:
+                self.current_manifest.errors.append(f"Notification error: {err}")
+
     def run_next_unit(self) -> bool:
         if not self.budget_manager or not self.current_manifest:
             raise RuntimeError("Engine not initialized. Call initialize_task() first.")
 
         budget_state = self.budget_manager.evaluate_state()
         if budget_state == BudgetState.EXHAUSTED or budget_state == BudgetState.EMERGENCY:
-            self.current_manifest.set_status("PARTIALLY_COMPLETED")
-            self.current_manifest.reason = "BUDGET_LIMIT"
-            self.current_manifest.errors.append("Budget reached emergency or exhausted state.")
-            self._persist_context_to_manifest(self.current_manifest)
-            self.checkpoint_manager.save_checkpoint(self.current_manifest)
+            self._handle_budget_exhaustion(budget_state)
             return False
 
         eligible = Scheduler.get_eligible_units(
