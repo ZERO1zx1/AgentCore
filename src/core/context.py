@@ -18,9 +18,12 @@ class TaskContext:
     repository_context: Dict[str, Any] = field(default_factory=dict)
     document_context: Dict[str, Any] = field(default_factory=dict)
     structured_context: Dict[str, Any] = field(default_factory=dict)
+    asset_context: Dict[str, Any] = field(default_factory=dict)
     relevant_files: List[str] = field(default_factory=list)
     persisted_context_paths: Dict[str, str] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    orchestration: Dict[str, Any] = field(default_factory=dict)
+    memory_hits: List[Dict[str, Any]] = field(default_factory=list)
 
     # Backward-compatible aliases
     @property
@@ -43,9 +46,12 @@ class TaskContext:
             "repository_context": self.repository_context,
             "document_context": self.document_context,
             "structured_context": self.structured_context,
+            "asset_context": self.asset_context,
             "relevant_files": self.relevant_files,
             "persisted_context_paths": self.persisted_context_paths,
             "metadata": self.metadata,
+            "orchestration": self.orchestration,
+            "memory_hits": self.memory_hits,
         }
 
     @classmethod
@@ -61,7 +67,10 @@ class TaskContext:
             repository_context=data.get("repository_context", {}),
             document_context=data.get("document_context", {}),
             structured_context=data.get("structured_context", {}),
+            asset_context=data.get("asset_context", {}),
             relevant_files=data.get("relevant_files", []),
             persisted_context_paths=data.get("persisted_context_paths", {}),
             metadata=data.get("metadata", {}),
+            orchestration=data.get("orchestration", {}),
+            memory_hits=data.get("memory_hits", []),
         )

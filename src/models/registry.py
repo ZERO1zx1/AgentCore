@@ -26,6 +26,7 @@ class ModelRegistry:
             "fake-standard": ModelSpec("fake", "fake-standard", "tier2", Decimal("0.001"), Decimal("0.003"), ["coding", "standard_reasoning", "text"], ["text"], ["text"]),
             "fake-strong": ModelSpec("fake", "fake-strong", "tier3", Decimal("0.005"), Decimal("0.015"), ["complex_debugging", "architecture", "coding", "text"], ["text"], ["text"]),
             "fake-vision": ModelSpec("fake", "fake-vision", "tier4", Decimal("0.01"), Decimal("0.03"), ["multimodal", "vision", "text"], ["text", "image"], ["text"]),
+            "fake-omni": ModelSpec("fake", "fake-omni", "tier4", Decimal("0.012"), Decimal("0.035"), ["multimodal", "vision", "image", "audio", "video", "text"], ["text", "image", "audio", "video"], ["text"]),
         }
 
     def register_model(self, name: str, spec: ModelSpec):
@@ -33,6 +34,9 @@ class ModelRegistry:
 
     def get_model(self, name: str) -> Optional[ModelSpec]:
         return self._models.get(name)
+
+    def list_enabled(self) -> List[ModelSpec]:
+        return [model for model in self._models.values() if model.enabled]
 
     def select_best_model(self, required_capabilities: List[str], preferred_tier: str = "tier2") -> Optional[ModelSpec]:
         # 1. Capability filtering BEFORE cost optimization

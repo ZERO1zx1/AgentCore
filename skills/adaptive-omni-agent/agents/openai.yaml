@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adaptive Omni Agent"
+  short_description: "Turn any prompt into verified adaptive work"
+  default_prompt: "Use $adaptive-omni-agent to understand this workspace and turn my request into a verified, budget-aware result."

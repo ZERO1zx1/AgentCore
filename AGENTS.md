@@ -28,16 +28,18 @@ ArtifactManager → OutputManager → Resume
 | Module | Purpose |
 |--------|---------|
 | `src/core/engine.py` | Main `AgentCoreEngine` orchestrator |
+| `src/core/orchestrator.py` | Three-skill intent, artifact, and capability routing |
 | `src/core/task.py` | `TaskInput` universal task structure |
 | `src/core/planner.py` | `Planner`, `Scheduler`, `WorkUnit` (P0-P4 priorities) |
 | `src/core/policy.py` | `ExecutionPolicy` for AUTO/FULL/CREDIT_SAFE modes |
 | `src/budget/state.py` | `BudgetManager`, `BudgetState` (NORMAL→EXHAUSTED) |
 | `src/budget/estimator.py` | `CostEstimator` for unit cost estimation |
-| `src/checkpoint/manifest.py` | `TaskManifest` V2 with schema versioning |
+| `src/checkpoint/manifest.py` | `TaskManifest` V3 with skill-route persistence |
 | `src/checkpoint/manager.py` | `CheckpointManager` for persistence |
 | `src/models/registry.py` | `ModelRegistry`, `ModelSpec` (capability-aware routing) |
 | `src/core/executor.py` | `OperationExecutor` contract + `FakeExecutor` |
-| `src/ingestion/router.py` | `InputRouter` (repo, PDF, text, JSON, CSV) |
+| `src/ingestion/router.py` | `InputRouter` (repo, PDF, text, JSON/CSV, media/document metadata) |
+| `src/memory/store.py` | Bounded read-only runtime recall from adaptive local memory |
 | `src/output/artifact_manager.py` | `ArtifactManager` (real file persistence) |
 | `src/core/notifications.py` | `GitManager`, `NotificationManager` (auto git push on budget exhaustion) |
 
@@ -61,11 +63,14 @@ NORMAL (ratio > 0.50) → CONSERVE (≤0.50) → CRITICAL (≤0.25) → EMERGENC
 
 ### Checkpoint/Resume
 
-- `TaskManifest` V2 with `schema_version: "2.0"`
+- `TaskManifest` V3 with `schema_version: "3.0"` (loads older manifests)
+- Primary/active skills, artifact types, validation routes, and memory-hit IDs persist across resume
 - SHA-256 source fingerprinting for change detection
 - Granular, dependency-aware invalidation
 - Usage history persists across resume
 - Manifest saved to `.agentcore/checkpoints/{task_id}_manifest.json`
+- Checkpoint retention defaults to the newest 100 task manifests
+- Budget-exhaustion Git staging is limited to the explicit checkpoint file; never stage unrelated work
 
 ### Provider Abstraction
 
@@ -84,8 +89,8 @@ It does **not** depend on any provider SDK. Implement `OperationExecutor` to int
 
 ```
 src/                    # Source code (see modules above)
-tests/                  # 27 passing tests (unittest-style, pytest compatible)
-skills/                 # Canonical AgentCore skills (code-engineer, credit-safe-agent)
+tests/                  # 43 passing tests (unittest-style, pytest compatible)
+skills/                 # Three public skills plus internal adaptive-local-memory subsystem
 .opencode/              # OpenCode config (skills/, commands/)
 .agentcore/             # Runtime storage (checkpoints, tasks, notifications, git_fallback)
 .manus-mini/            # Legacy runtime (preserved for compatibility)
@@ -155,7 +160,10 @@ python -c "from src.core.engine import AgentCoreEngine; print('OK')"
 
 ## Skill System
 
-AgentCore includes two canonical skills in `skills/`:
+AgentCore exposes three canonical user-facing skills in `skills/`:
+
+### `skills/adaptive-omni-agent/SKILL.md`
+Top-level prompt, artifact, capability, model/tool, and validation orchestration. Uses local memory internally when relevant.
 
 ### `skills/code-engineer/SKILL.md`
 Autonomous senior software engineering for:
@@ -174,10 +182,11 @@ Budget-aware autonomous execution:
 
 ### OpenCode Skill Integration
 Project-local skills exposed via `.opencode/skills/`:
+- `.opencode/skills/adaptive-omni-agent/SKILL.md` → wraps canonical skill
 - `.opencode/skills/code-engineer/SKILL.md` → wraps canonical skill
 - `.opencode/skills/credit-safe-agent/SKILL.md` → wraps canonical skill
 
-Use `/skill code-engineer` or `/skill credit-safe-agent` in OpenCode to load.
+Use `/adaptive-omni`, `/code-engineer`, or `/credit-safe` in OpenCode.
 
 ---
 
@@ -186,6 +195,9 @@ Use `/skill code-engineer` or `/skill credit-safe-agent` in OpenCode to load.
 | Command | Purpose |
 |---------|---------|
 | `/agentcore` | Load project context, show status, identify relevant skills |
+| `/adaptive-omni <request>` | Run all three roles through the adaptive orchestrator |
+| `/code-engineer <request>` | Run artifact-aware implementation/diagnosis with credit control |
+| `/credit-safe <request>` | Run budget-first work with reserve/checkpoint protection |
 | `/status` | Show repository, task, checkpoint, budget state |
 | `/resume` | Resume from last checkpoint (inspects real persisted state) |
 | `/checkpoint` | Manual checkpoint trigger |
@@ -196,8 +208,8 @@ Use `/skill code-engineer` or `/skill credit-safe-agent` in OpenCode to load.
 ## Test Architecture
 
 - **Framework**: unittest (pytest compatible)
-- **Test files**: 6 files, 27 tests
-- **Key test areas**: Context delivery, resume invalidation, cost accounting, dependency/retry, E2E pipelines, PDF, planner, repository, V2 refined
+- **Test files**: 8 files, 43 tests
+- **Key test areas**: Context delivery, three-skill routing, local-memory recall, media metadata, resume invalidation, cost accounting, dependency/retry, E2E pipelines, PDF, planner, repository
 
 ```bash
 python -m pytest tests/ -v  # All tests

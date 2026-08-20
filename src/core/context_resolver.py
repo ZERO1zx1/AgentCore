@@ -4,6 +4,7 @@ Deterministic, size-limited, provider-agnostic.
 """
 import os
 import json
+import hashlib
 from typing import Dict, Any, List, Optional
 from src.core.context import TaskContext
 from src.core.runtime_config import RuntimeConfig
@@ -42,6 +43,10 @@ class ContextResolver:
                 if content:
                     parts.append(content)
                     used += len(content)
+            elif ref == "asset_context" and task_context.asset_context:
+                content = self._resolve_assets(task_context, limit - used)
+                if content:
+                    parts.append(content); used += len(content)
 
         # Dependency artifact content
         dep_content = self._resolve_dependencies(task_context, work_unit, limit - used)
@@ -164,3 +169,63 @@ class ContextResolver:
                 parts.append(block)
                 used += len(block)
         return "\n\n".join(parts)
+
+    def resolve_attachments(self, task_context: TaskContext, work_unit) -> List[Dict[str, Any]]:
+        """Return verified path-based multimodal parts for provider adapters.
+
+        Binary data is deliberately not copied into the text prompt.  A provider
+        adapter may stream/read each absolute path and translate it to its native
+        image/audio/video content-part format.
+        """
+        if "asset_context" not in getattr(work_unit, "context_refs", []):
+            return []
+
+        mode = (task_context.execution_mode or "AUTO").upper()
+        byte_limit = {
+            "CREDIT_SAFE": self.config.max_attachment_bytes_credit_safe,
+            "FULL": self.config.max_attachment_bytes_full,
+        }.get(mode, self.config.max_attachment_bytes_auto)
+        supported_modalities = {"image", "audio", "video"}
+        attachments: List[Dict[str, Any]] = []
+        used = 0
+
+        for source_path, info in task_context.asset_context.items():
+            if len(attachments) >= self.config.max_attachment_count:
+                break
+            modality = info.get("asset_type", "")
+            if modality not in supported_modalities:
+                continue
+            path = os.path.abspath(source_path)
+            if not os.path.isfile(path):
+                continue
+            size = os.path.getsize(path)
+            if size > byte_limit - used:
+                continue
+            expected_hash = info.get("sha256", "")
+            actual_hash = self._sha256(path)
+            if expected_hash and expected_hash != actual_hash:
+                continue
+            attachments.append({
+                "type": "input_attachment",
+                "content_mode": "path",
+                "path": path,
+                "mime_type": info.get("mime_type", "application/octet-stream"),
+                "modality": modality,
+                "size": size,
+                "sha256": actual_hash,
+            })
+            used += size
+        return attachments
+
+    @staticmethod
+    def _sha256(path: str) -> str:
+        hasher = hashlib.sha256()
+        with open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    def _resolve_assets(self, task_context: TaskContext, budget: int) -> str:
+        """Expose bounded metadata; binary content stays out of text prompts."""
+        content = json.dumps(task_context.asset_context, ensure_ascii=False, indent=2)
+        return ("ASSET METADATA:\n" + content)[:budget]

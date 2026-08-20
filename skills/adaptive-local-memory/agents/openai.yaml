@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adaptive Local Memory"
+  short_description: "Learn from verified local task outcomes"
+  default_prompt: "Use $adaptive-local-memory to recall relevant lessons, complete this task, and save only verified new learning."

@@ -20,14 +20,16 @@ class FakeExecutor(OperationExecutor):
         self.should_fail = should_fail
         self.execution_count = 0
         self.last_prompt = ""
+        self.last_context: Dict[str, Any] = {}
 
     def execute(self, unit_type: str, model_id: str, prompt: str, context: Optional[Dict[str, Any]] = None) -> ExecutionResult:
         self.execution_count += 1
         self.last_prompt = prompt
+        self.last_context = context or {}
         if self.should_fail:
             return ExecutionResult(
                 success=False,
-                usage={"prompt_tokens": 10, "completion_tokens": 10},
+                usage={"input_tokens": 10, "output_tokens": 10, "total_tokens": 20},
                 error="Simulated execution failure",
                 provider="fake",
                 model_id=model_id,
@@ -35,7 +37,7 @@ class FakeExecutor(OperationExecutor):
         return ExecutionResult(
             success=True,
             output_text=f"FakeExecutor output for {unit_type} using model {model_id}",
-            usage={"prompt_tokens": 100, "completion_tokens": 50},
+            usage={"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
             provider="fake",
             model_id=model_id,
         )
@@ -51,5 +53,7 @@ class ProductionProviderExecutor(OperationExecutor):
         self.base_url = base_url
 
     def execute(self, unit_type: str, model_id: str, prompt: str, context: Optional[Dict[str, Any]] = None) -> ExecutionResult:
-        # Implementation for real provider invocation would go here.
+        # Translate context["attachments"] path descriptors to the provider's
+        # native image/audio/video content parts.  The engine never puts binary
+        # or base64 data into the text prompt.
         raise NotImplementedError("ProductionProviderExecutor requires an active API client configuration.")

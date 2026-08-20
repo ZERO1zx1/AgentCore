@@ -4,7 +4,7 @@
 
 **AgentCore** is a provider-agnostic, budget-aware, resumable AI agent execution framework for cloud models, local models, coding agents, custom runtimes, and future AI providers. It implements a robust agentic engine capable of handling software repositories, structured data, and parsed documents while protecting the user's execution budget through incremental checkpointing and capability-aware routing.
 
-AgentCore is designed to remain independent of any single AI provider, agent platform, or model runtime. External runtimes integrate through the `OperationExecutor` adapter contract.
+AgentCore is designed to remain independent of any single AI provider, agent platform, or model runtime. Its three-skill architecture uses `adaptive-omni-agent` for intent/capability orchestration, `code-engineer` for artifact work, and `credit-safe-agent` for budget/checkpoint control. External runtimes integrate through the `OperationExecutor` adapter contract.
 
 ---
 
@@ -14,6 +14,10 @@ AgentCore is designed to remain independent of any single AI provider, agent pla
 AI Runtime / Provider
         ↓
 OperationExecutor Adapter
+        ↓
+Adaptive Omni Orchestrator
+        ↓
+Code Engineer + Credit-Safe Controller
         ↓
 AgentCore
         ↓
@@ -82,14 +86,15 @@ AgentCore execution modes:
 | **CSV** | Supported | Headers, row/column counts, subset extraction |
 | **PDF** | Supported | Real parsing via `pypdf`, chunking, text extraction, hashing |
 | **Budget-aware execution** | Supported | Decimal-safe accounting, P0-P4 prioritization, estimate-vs-actual separation |
-| **Checkpoint / Resume** | Supported | SHA-256 fingerprinting, V2 Task Manifests, source-change invalidation |
+| **Three-skill orchestration** | Supported | Persistent primary/active skill route per work unit |
+| **Checkpoint / Resume** | Supported | SHA-256 fingerprinting, V3 Task Manifests, source-change invalidation |
 | **Source fingerprint invalidation** | Supported | Granular, dependency-aware invalidation |
 | **Real artifact persistence** | Supported | Real files written to `.agentcore/` |
 | **Provider adapter contract** | Supported | `OperationExecutor` integration boundary |
 | **Real model/provider execution** | Requires external adapter | `OperationExecutor` adapter required |
 | **FakeExecutor** | Test/Demo only | Offline deterministic execution, no real model calls |
-| **DOCX / XLSX / PPTX** | Not implemented | — |
-| **Image / Video / Audio** | Not implemented | — |
+| **DOCX / XLSX / PPTX** | Metadata routing | Bounded type/size/hash inspection; semantic processing requires capable external tool/model |
+| **Image / Video / Audio** | Attachment routing | Verified path-based content parts (MIME, modality, size, SHA-256) are delivered to capable provider adapters |
 
 ---
 
@@ -101,8 +106,14 @@ WorkUnits receive **actual relevant source content**, not just metadata:
 - **PDF tasks**: extracted text chunks are persisted and included
 - **Text/Markdown tasks**: relevant text chunks are included
 - **JSON/CSV tasks**: selected records/headers are included
+- **Image/audio/video tasks**: binary content is delivered outside the text prompt through `context["attachments"]`; adapters translate verified local paths to provider-native content parts
 
 Context is deterministic and size-limited (`RuntimeConfig` controls `max_context_chars`, `max_file_chars`, `max_chunk_count`).
+Attachment count and total bytes are also bounded. `CREDIT_SAFE` uses the smallest byte allowance; skipped oversized assets remain available as metadata without consuming prompt tokens.
+
+### Multimodal executor contract
+
+`OperationExecutor.execute(..., context=...)` receives an `attachments` list. Each item contains `content_mode="path"`, an absolute `path`, `mime_type`, `modality`, `size`, and verified `sha256`. Provider adapters must read/stream the path and convert it to their native image/audio/video input format. Base64 is intentionally excluded from text prompts.
 
 ---
 
@@ -125,7 +136,7 @@ Install required dependencies for PDF processing and document ingestion:
 ```bash
 pip3 install -r requirements.txt
 ```
-If `pypdf` is unavailable, PDF processing operations will raise a `BLOCKED` error rather than returning placeholder text.
+If `pypdf` is unavailable, direct PDF processing raises a typed dependency error and `AgentCoreEngine.initialize_task()` persists a `BLOCKED / DEPENDENCY_UNAVAILABLE` manifest rather than crashing or returning placeholder content.
 
 ---
 

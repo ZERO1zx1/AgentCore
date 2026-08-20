@@ -6,7 +6,6 @@ Provider-agnostic: the engine only knows prompt, capabilities, result, usage, ar
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
 from src.core.task import TaskInput
-from src.core.modes import ExecutionMode
 from src.core.context import TaskContext
 from src.core.execution_result import ExecutionResult
 from src.core.runtime_config import RuntimeConfig
@@ -16,14 +15,17 @@ from src.budget.estimator import CostEstimator
 from src.checkpoint.manifest import TaskManifest
 from src.checkpoint.manager import CheckpointManager
 from src.models.registry import ModelRegistry
+from src.models.router import ModelRouter
 from src.core.planner import Planner, Scheduler, WorkUnit
-from src.core.policy import ExecutionPolicy
 from src.core.executor import OperationExecutor, FakeExecutor
 from src.output.manager import OutputManager
 from src.output.artifact_manager import ArtifactManager
-from src.ingestion.router import InputRouter
+from src.ingestion.router import InputRouter, InputDependencyError
+from src.ingestion.assets import ASSET_EXTENSIONS
 from src.ingestion.repository import RepositoryProcessor
 from src.core.notifications import GitManager, NotificationManager, create_budget_exhaustion_handler
+from src.core.orchestrator import AdaptiveOrchestrator
+from src.memory.store import LocalMemoryStore
 import json
 import os
 
@@ -43,6 +45,7 @@ class AgentCoreEngine:
         self.checkpoint_manager = CheckpointManager(checkpoint_dir or self.runtime_config.checkpoint_root)
         self.executor = executor or FakeExecutor()
         self.model_registry = model_registry or ModelRegistry()
+        self.model_router = ModelRouter(self.model_registry)
         self.artifact_manager = artifact_manager or ArtifactManager(base_dir=self.runtime_config.artifact_root)
         self.context_resolver = ContextResolver(self.runtime_config)
         self.budget_manager: Optional[BudgetManager] = None
@@ -50,6 +53,7 @@ class AgentCoreEngine:
         self.current_context: Optional[TaskContext] = None
         self.work_units: List[WorkUnit] = []
         self.usage_history: List[Dict[str, Any]] = []
+        self.memory_store = LocalMemoryStore(repo_root)
         
         # Budget exhaustion handlers
         self.git_manager = GitManager(repo_root)
@@ -66,15 +70,27 @@ class AgentCoreEngine:
         # Step 1: Route inputs to processors and build TaskContext
         context_dir = os.path.join(self.artifact_manager.task_dir(task_input.task_id), "context")
         os.makedirs(context_dir, exist_ok=True)
-        context = InputRouter.route(
-            task_id=task_input.task_id,
-            sources=task_input.files,
-            repository=task_input.repository,
-            context_dir=context_dir,
-        )
+        try:
+            context = InputRouter.route(
+                task_id=task_input.task_id,
+                sources=task_input.files,
+                repository=task_input.repository,
+                context_dir=context_dir,
+            )
+        except InputDependencyError as exc:
+            context = TaskContext(task_id=task_input.task_id, user_prompt=task_input.prompt, execution_mode=task_input.execution_mode.value, requested_output_type=task_input.output_type, input_sources=list(task_input.files))
+            manifest = TaskManifest(task_id=task_input.task_id, input_type=task_input.output_type, sources=task_input.files, initial_budget=task_input.budget, budget_unit=task_input.budget_unit, execution_mode=task_input.execution_mode.value)
+            manifest.set_status("BLOCKED"); manifest.reason = "DEPENDENCY_UNAVAILABLE"; manifest.errors.append(str(exc))
+            self.current_context = context; self.current_manifest = manifest; self.work_units = []
+            self.budget_manager = BudgetManager(initial_budget=task_input.budget, budget_unit=task_input.budget_unit)
+            self._persist_context_to_manifest(manifest); self.checkpoint_manager.save_checkpoint(manifest)
+            return manifest
         context.user_prompt = task_input.prompt
         context.execution_mode = task_input.execution_mode.value
         context.requested_output_type = task_input.output_type
+        profile = AdaptiveOrchestrator.profile(task_input.prompt, context, task_input.requested_skill)
+        context.orchestration = profile.to_dict()
+        context.memory_hits = self.memory_store.recall(profile.memory_query)
 
         # Step 2: Create manifest
         manifest = TaskManifest(
@@ -87,9 +103,11 @@ class AgentCoreEngine:
         )
         manifest.input_data["repository"] = task_input.repository
         manifest.input_data["task_context_fingerprint"] = self._fingerprint_context(context)
+        manifest.orchestration = profile.to_dict()
+        manifest.orchestration["memory_hit_ids"] = [item["id"] for item in context.memory_hits]
 
         # Step 3: Rule-based planning with context
-        work_units = Planner.plan_task(task_input.prompt, task_input.files, context)
+        work_units = Planner.plan_task(task_input.prompt, task_input.files, context, profile.to_dict())
         self._assign_source_refs(work_units, context)
 
         self.current_manifest = manifest
@@ -139,6 +157,7 @@ class AgentCoreEngine:
                 self.current_context.user_prompt if hasattr(self.current_context, "user_prompt") else task_input.prompt,
                 getattr(self.current_context, "input_sources", task_input.files),
                 self.current_context,
+                getattr(manifest, "orchestration", {}),
             )
 
         # Restore usage history so resume continues accurately
@@ -163,6 +182,8 @@ class AgentCoreEngine:
         if self.current_context is not None:
             manifest.task_context_dict = self.current_context.to_dict()
             manifest.work_units_data = [u.to_dict() for u in self.work_units]
+            manifest.orchestration = dict(self.current_context.orchestration)
+            manifest.orchestration["memory_hit_ids"] = [item.get("id") for item in self.current_context.memory_hits]
         # Persist usage history so resume restores it
         manifest.usage_history = list(self.usage_history)
 
@@ -177,6 +198,7 @@ class AgentCoreEngine:
                 "text": "document_context",
                 "structured": "structured_context",
             }.get(src_type)
+            if key is None and src_type in set(ASSET_EXTENSIONS.values()): key = "asset_context"
             if key:
                 source_by_ref.setdefault(key, []).append(src_path)
 
@@ -287,13 +309,14 @@ class AgentCoreEngine:
         self.current_manifest.reason = "BUDGET_LIMIT"
         self.current_manifest.errors.append(f"Budget reached {budget_state.value} state.")
         self._persist_context_to_manifest(self.current_manifest)
-        self.checkpoint_manager.save_checkpoint(self.current_manifest)
+        checkpoint_path = self.checkpoint_manager.save_checkpoint(self.current_manifest)
         
         # Push checkpoint to git
         git_result = self.git_manager.push_checkpoint(
             task_id=self.current_manifest.task_id,
             budget_state=budget_state.value,
-            budget_info=self.budget_manager.to_dict()
+            budget_info=self.budget_manager.to_dict(),
+            checkpoint_path=checkpoint_path,
         )
         if git_result["success"]:
             self.current_manifest.errors.append(f"Git push: {', '.join(git_result['steps'])}")
@@ -354,13 +377,8 @@ class AgentCoreEngine:
             self.checkpoint_manager.save_checkpoint(self.current_manifest)
             return False
 
-        # Policy & Routing
-        preferred_tier = ExecutionPolicy.adjust_routing(
-            ExecutionMode.from_str(self.current_manifest.execution_mode),
-            budget_state,
-            unit.required_capabilities,
-        )
-        model = self.model_registry.select_best_model(unit.required_capabilities, preferred_tier)
+        # Policy & Routing (centralized in ModelRouter)
+        model = self.model_router.get_model_for_task(unit.type, budget_state.value, unit.required_capabilities, self.current_manifest.execution_mode)
         if not model:
             unit.status = "failed"
             self.current_manifest.errors.append(
@@ -390,7 +408,16 @@ class AgentCoreEngine:
         prompt = self._build_execution_prompt(unit)
 
         # Execute
-        exec_result = self.executor.execute(unit.type, model.model_id, prompt)
+        attachments = []
+        if self.current_context:
+            attachments = self.context_resolver.resolve_attachments(self.current_context, unit)
+        execution_context = {
+            "task_id": self.current_manifest.task_id,
+            "work_unit_id": unit.id,
+            "execution_mode": self.current_manifest.execution_mode,
+            "attachments": attachments,
+        }
+        exec_result = self.executor.execute(unit.type, model.model_id, prompt, context=execution_context)
 
         # Normalize usage
         usage = self._normalize_usage(exec_result.usage)
@@ -415,8 +442,7 @@ class AgentCoreEngine:
             "provider_request_id": exec_result.provider_request_id,
             "success": exec_result.success,
         })
-        self.budget_manager.record_usage(charged_cost)
-        self.current_manifest.budget_info.update(self.budget_manager.to_dict())
+        self.current_manifest.budget_info.update(self.budget_manager.record_usage_snapshot(charged_cost))
 
         if not exec_result.success:
             unit.status = "failed"
@@ -522,6 +548,16 @@ class AgentCoreEngine:
         parts.append(f"Work Unit: {unit.id} ({unit.type})")
         parts.append(f"")
         parts.append(f"Instruction: {unit.instruction}")
+        if self.current_context and self.current_context.orchestration:
+            route = self.current_context.orchestration
+            parts.append(f"Primary skill: {route.get('primary_skill', 'adaptive-omni-agent')}")
+            parts.append(f"Active skills: {', '.join(route.get('active_skills', []))}")
+            parts.append(f"Artifact types: {', '.join(route.get('artifact_types', []))}")
+            parts.append(f"Skill role for this unit: {unit.metadata.get('skill_role', 'adaptive-omni-agent')}")
+        if self.current_context and self.current_context.memory_hits:
+            parts.append("Relevant local lessons (fallible; current evidence wins):")
+            for lesson in self.current_context.memory_hits[:3]:
+                parts.append(f"- {lesson.get('problem')}: {lesson.get('action')} (confidence {lesson.get('confidence')})")
 
         # Resolve real context content
         if self.current_context:

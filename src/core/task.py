@@ -19,6 +19,7 @@ class TaskInput:
     budget_unit: str = "USD"
     metadata: Dict[str, Any] = field(default_factory=dict)
     resume_task_id: Optional[str] = None
+    requested_skill: str = "adaptive-omni-agent"
 
     def get_source_fingerprints(self) -> Dict[str, str]:
         fingerprints = {}

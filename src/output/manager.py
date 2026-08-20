@@ -19,6 +19,14 @@ class OutputManager:
         report.append(f"**Execution Mode**: {manifest.execution_mode}")
         report.append(f"**Updated At**: {manifest.updated_at}\n")
 
+        orchestration = getattr(manifest, "orchestration", {})
+        if orchestration:
+            report.append("## Skill Route")
+            report.append(f"- Primary: {orchestration.get('primary_skill', 'adaptive-omni-agent')}")
+            report.append(f"- Active: {', '.join(orchestration.get('active_skills', []))}")
+            report.append(f"- Artifacts: {', '.join(orchestration.get('artifact_types', []))}")
+            report.append(f"- Memory hits: {len(orchestration.get('memory_hit_ids', []))}\n")
+
         report.append("## Completed Work")
         if manifest.completed_work:
             for item in manifest.completed_work:

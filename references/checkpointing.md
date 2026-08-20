@@ -1,5 +1,9 @@
 # Checkpointing and Resumability
 
+The checkpoint manager keeps one current manifest per task and, by default, retains the newest 100 task manifests. Retention is configurable with `CheckpointManager(max_manifests=...)`.
+
+When budget exhaustion triggers Git persistence, only the explicit task checkpoint is staged. Unrelated working-tree files must never be added to that automated commit.
+
 AgentCore ensures that all progress is persistent and resumable, preventing the need to repeat expensive paid operations.
 
 ## Checkpoint Invariants

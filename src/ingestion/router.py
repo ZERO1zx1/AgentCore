@@ -9,6 +9,11 @@ from src.ingestion.pdf import PDFProcessor
 from src.ingestion.repository import RepositoryProcessor
 from src.ingestion.text import TextProcessor
 from src.ingestion.structured import StructuredDataProcessor
+from src.ingestion.assets import AssetProcessor
+
+
+class InputDependencyError(RuntimeError):
+    """A required local parser/decoder is unavailable."""
 
 
 class InputRouter:
@@ -23,6 +28,8 @@ class InputRouter:
         Large content is persisted and referenced by path.
         """
         all_sources = list(sources)
+        if context_dir:
+            os.makedirs(context_dir, exist_ok=True)
         if repository and repository not in all_sources:
             all_sources.append(repository)
 
@@ -37,7 +44,12 @@ class InputRouter:
                 context.source_fingerprints[src] = RepositoryProcessor.fingerprint_repository(src)
             elif src.endswith(".pdf"):
                 processor = PDFProcessor(task_id)
-                info = processor.inspect(src)
+                try:
+                    info = processor.inspect(src)
+                except RuntimeError as exc:
+                    if str(exc).startswith("BLOCKED:"):
+                        raise InputDependencyError(str(exc)) from exc
+                    raise
                 # Persist extracted chunks to context dir
                 if context_dir:
                     info = processor.extract_and_persist(src, context_dir)
@@ -70,6 +82,12 @@ class InputRouter:
                 context.input_sources.append(src)
                 context.structured_context[src] = info
                 context.structured_context[src]["subset"] = subset.get("subset")
+                context.source_fingerprints[src] = info["sha256"]
+            elif AssetProcessor.is_supported(src):
+                info = AssetProcessor.inspect(src)
+                context.source_types[src] = info["asset_type"]
+                context.input_sources.append(src)
+                context.asset_context[src] = info
                 context.source_fingerprints[src] = info["sha256"]
             else:
                 raise ValueError(f"Unsupported input source: {src}")
@@ -105,6 +123,8 @@ class InputRouter:
                     "type": "structured",
                     "inspection": StructuredDataProcessor.subset(src)
                 })
+            elif AssetProcessor.is_supported(src):
+                results.append({"source": src, "type": AssetProcessor.asset_type(src), "inspection": AssetProcessor.inspect(src)})
             else:
                 results.append({
                     "source": src,

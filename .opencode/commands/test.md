@@ -23,6 +23,8 @@ Runs pytest on the AgentCore test suite:
 - `tests/test_planner.py` — Planner and scheduler
 - `tests/test_repo.py` — Repository processing
 - `tests/test_v2_refined.py` — V2 refined tests (budget, decimal, resume, modes)
+- `tests/test_three_skill_orchestration.py` — three-skill routing, media metadata, memory, manifest V3
+- `tests/test_hardening.py` — dependency blocking, safe Git staging, retention, routing, atomic budget snapshots
 
 ## Default
 
@@ -30,7 +32,7 @@ Runs pytest on the AgentCore test suite:
 /test
 ```
 
-Runs all 27 tests with `-v` flag.
+Runs all 43 tests with `-v` flag.
 
 ## Options
 

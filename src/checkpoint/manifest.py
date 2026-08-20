@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from decimal import Decimal
 
 class TaskManifest:
-    SCHEMA_VERSION = "2.0"
+    SCHEMA_VERSION = "3.0"
 
     def __init__(
         self,
@@ -53,6 +53,7 @@ class TaskManifest:
         self.usage_history: List[Dict[str, Any]] = []
         self.task_context_dict: Dict[str, Any] = {}
         self.work_units_data: List[Dict[str, Any]] = []
+        self.orchestration: Dict[str, Any] = {}
         self.updated_at = datetime.now(UTC).isoformat()
         self.created_at = self.updated_at
 
@@ -97,7 +98,8 @@ class TaskManifest:
             "usage_history": self.usage_history,
             "next_actions": self.next_actions,
             "task_context": self.task_context_dict,
-            "work_units": self.work_units_data
+            "work_units": self.work_units_data,
+            "orchestration": self.orchestration,
         }
 
     def save(self, filepath: str):
@@ -139,5 +141,6 @@ class TaskManifest:
         manifest.next_actions = data.get("next_actions", [])
         manifest.task_context_dict = data.get("task_context", {})
         manifest.work_units_data = data.get("work_units", [])
+        manifest.orchestration = data.get("orchestration", {})
         manifest.updated_at = data.get("updated_at", datetime.now(UTC).isoformat())
         return manifest

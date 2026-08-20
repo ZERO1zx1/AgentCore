@@ -46,6 +46,11 @@ class BudgetManager:
         self.used_budget += Decimal(str(cost))
         return self.evaluate_state()
 
+    def record_usage_snapshot(self, cost: float | Decimal) -> Dict[str, Any]:
+        """Charge usage and return the matching state snapshot as one operation."""
+        self.record_usage(cost)
+        return self.to_dict()
+
     def evaluate_state(self, estimated_next_cost: float | Decimal = 0.0) -> BudgetState:
         rem = self.remaining_budget
         if rem <= Decimal("0.0"):

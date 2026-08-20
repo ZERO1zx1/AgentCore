@@ -37,17 +37,31 @@ class GitManager:
         except Exception:
             return False
     
-    def add_all(self) -> bool:
-        """Stage all changes."""
+    def stage_checkpoint(self, checkpoint_path: str) -> bool:
+        """Stage only the explicit checkpoint file, never unrelated user work."""
+        absolute = os.path.abspath(checkpoint_path)
+        try:
+            relative = os.path.relpath(absolute, self.repo_root)
+        except ValueError:
+            return False
+        if relative == os.pardir or relative.startswith(os.pardir + os.sep):
+            return False
         try:
             result = subprocess.run(
-                ["git", "add", "-A"],
+                ["git", "add", "--", relative],
                 cwd=self.repo_root,
                 capture_output=True,
                 text=True,
                 timeout=15
             )
             return result.returncode == 0
+        except Exception:
+            return False
+
+    def has_staged_changes(self) -> bool:
+        try:
+            result = subprocess.run(["git", "diff", "--cached", "--quiet", "--exit-code"], cwd=self.repo_root, capture_output=True, text=True, timeout=10)
+            return result.returncode == 1
         except Exception:
             return False
     
@@ -109,7 +123,7 @@ class GitManager:
         
         return fallback_file
     
-    def push_checkpoint(self, task_id: str, budget_state: str, budget_info: Dict[str, Any]) -> Dict[str, Any]:
+    def push_checkpoint(self, task_id: str, budget_state: str, budget_info: Dict[str, Any], checkpoint_path: Optional[str] = None) -> Dict[str, Any]:
         """Push checkpoint with budget exhaustion info. Fully automated with fallback."""
         result = {
             "success": False,
@@ -131,9 +145,9 @@ class GitManager:
         
         result["steps"].append("git repo check: OK")
         
-        # Add all changes (including checkpoints)
-        if self.add_all():
-            result["steps"].append("git add: OK")
+        checkpoint_path = checkpoint_path or os.path.join(self.repo_root, ".agentcore", "checkpoints", f"{task_id}_manifest.json")
+        if self.stage_checkpoint(checkpoint_path):
+            result["steps"].append("git add checkpoint: OK")
         else:
             result["error"] = "Failed to stage changes"
             result["steps"].append("git add: FAILED")
@@ -143,6 +157,11 @@ class GitManager:
             fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
             result["fallback_file"] = fallback_file
             result["steps"].append(f"fallback saved: {fallback_file}")
+            return result
+
+        if not self.has_staged_changes():
+            result["steps"].append("git commit: SKIPPED (checkpoint unchanged)")
+            result["success"] = True
             return result
         
         # Create commit message with budget info
@@ -159,7 +178,7 @@ class GitManager:
             result["steps"].append("git commit: OK")
         else:
             # Check if there was nothing to commit
-            if not self.has_uncommitted_changes():
+            if not self.has_staged_changes():
                 result["steps"].append("git commit: SKIPPED (no changes)")
                 result["success"] = True
                 return result

@@ -64,13 +64,14 @@ class WorkUnit:
 
 class Planner:
     @staticmethod
-    def plan_task(prompt: str, input_sources: List[str], context: Optional[TaskContext] = None) -> List[WorkUnit]:
+    def plan_task(prompt: str, input_sources: List[str], context: Optional[TaskContext] = None, orchestration: Optional[Dict[str, Any]] = None) -> List[WorkUnit]:
         """Rule-based planning that adapts to input types and task characteristics."""
         # Detect task types from context
         has_repo = False
         has_pdf = False
         has_text = False
         has_structured = False
+        has_assets = False
         source_types: Set[str] = set()
         if context:
             for src_type in context.source_types.values():
@@ -79,6 +80,7 @@ class Planner:
             has_pdf = "pdf" in source_types
             has_text = "text" in source_types
             has_structured = "structured" in source_types
+            has_assets = bool(source_types & {"image", "audio", "video", "slide", "spreadsheet", "document"})
         else:
             for src in input_sources:
                 import os
@@ -105,6 +107,8 @@ class Planner:
 
         if has_repo:
             units.extend(Planner._repo_plan(context))
+        elif has_assets:
+            units.extend(Planner._asset_plan(context, source_types))
         elif has_pdf:
             units.extend(Planner._pdf_plan(context))
         elif has_structured:
@@ -126,7 +130,29 @@ class Planner:
             optional=False,
         ))
 
+        Planner._apply_orchestration(units, orchestration or (context.orchestration if context else {}))
         return units
+
+    @staticmethod
+    def _apply_orchestration(units: List[WorkUnit], profile: Dict[str, Any]):
+        for unit in units:
+            if unit.type in {"parse", "output"}: role = "adaptive-omni-agent"
+            elif unit.type in {"code", "analyze", "transform"}: role = "code-engineer"
+            else: role = "credit-safe-agent"
+            unit.metadata.setdefault("skill_role", role)
+            unit.metadata.setdefault("active_skills", profile.get("active_skills", []))
+            unit.metadata.setdefault("artifact_types", profile.get("artifact_types", []))
+            unit.metadata.setdefault("validation_routes", profile.get("validation_routes", []))
+
+    @staticmethod
+    def _asset_plan(context: Optional[TaskContext], source_types: Set[str]) -> List[WorkUnit]:
+        modalities = sorted(source_types & {"image", "audio", "video"})
+        semantic_caps = ["multimodal"] + modalities if modalities else ["text"]
+        return [
+            WorkUnit(id="unit_inspect", type="parse", priority="P0", instruction="Inspect asset metadata, format, size, and requested transformation", required_capabilities=["parsing"], estimated_cost=.05, context_refs=["asset_context"]),
+            WorkUnit(id="unit_transform", type="transform", priority="P1", instruction="Analyze or transform the supplied artifact according to the user objective", required_capabilities=semantic_caps, estimated_cost=.4, dependencies=["unit_inspect"], context_refs=["asset_context"]),
+            WorkUnit(id="unit_validation", type="test", priority="P1", instruction="Validate the result in its rendered or playable form", required_capabilities=["deterministic"], estimated_cost=.1, dependencies=["unit_transform"], context_refs=["asset_context"]),
+        ]
 
     @staticmethod
     def _repo_plan(context: Optional[TaskContext] = None) -> List[WorkUnit]:

@@ -1,10 +1,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
-.manus-mini/
 .agentcore/
-.test_manus_mini/
-.test_manus_mini_refined/
 .test_pdf_processor/
 .test_repo_processor/
 .pytest_cache/
@@ -16,3 +13,6 @@ temporary test PDFs/
 runtime artifacts/
 secrets/
 API keys/
+.opencode/
+.agent-memory
+opencode.jsonc

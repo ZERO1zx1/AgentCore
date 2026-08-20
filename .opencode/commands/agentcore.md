@@ -19,7 +19,7 @@ Loads the AgentCore project context and displays current status.
 2. Shows repository state (branch, working tree)
 3. Displays current task/checkpoint if any
 4. Shows budget state if a task is active
-5. Identifies relevant skills (code-engineer, credit-safe-agent)
+5. Shows the three-skill route (adaptive-omni-agent, code-engineer, credit-safe-agent)
 6. Lists recent `.agentcore/` activity
 
 ## Output Example
@@ -34,8 +34,9 @@ Budget: $7.50 / $10.00 used (CRITICAL)
 Progress: 3/5 units completed
 
 Relevant Skills:
-- code-engineer (repository work)
-- credit-safe-agent (budget-aware execution)
+- adaptive-omni-agent (intent/capability orchestration)
+- code-engineer (artifact-aware execution)
+- credit-safe-agent (budget/checkpoint control)
 
 Recent Activity:
 - 2026-08-20 12:30: Budget exhaustion checkpoint saved
