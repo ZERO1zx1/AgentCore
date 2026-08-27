@@ -3,12 +3,12 @@ import hashlib
 import sqlite3
 import pytest
 
-from feat.low-cost-skill.skill_low_cost import low_cost_request, low_cost_request_sync
+from feat.low_cost_skill.skill_low_cost import low_cost_request, low_cost_request_sync
 
 # We'll monkeypatch call_provider inside the module to avoid real HTTP calls
 import importlib
 
-module = importlib.import_module('feat.low-cost-skill.skill_low_cost')
+module = importlib.import_module('feat.low_cost_skill.skill_low_cost')
 
 class DummyResp:
     def __init__(self, text, usage=None, id=None):

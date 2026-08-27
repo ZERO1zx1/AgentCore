@@ -1,2 +1,6 @@
 -r requirements.txt
 reportlab>=4.0
+httpx>=0.27
+pytest>=8.0
+pytest-asyncio>=0.23
+fastapi>=0.110

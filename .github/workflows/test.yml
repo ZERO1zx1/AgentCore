@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  python-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,6 +15,61 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
       - name: Compile
-        run: python -m compileall src tests
-      - name: Run tests
-        run: python -m unittest discover tests -v
+        run: python -m compileall src plugin feat examples/backend
+      - name: Core tests
+        run: python -m pytest tests/ -v
+      - name: Low-cost skill tests
+        run: python -m pytest feat/low_cost_skill/tests -v
+      - name: Backend example tests
+        run: python -m pytest tests/test_usage_proxy.py -v
+      - name: Plugin tests (ResourceWarning is an error)
+        run: python -W error::ResourceWarning -m pytest plugin/ -v
+      - name: Adaptive-local-memory tests
+        run: python -m unittest skills/adaptive-local-memory/scripts/test_memory.py -v
+      - name: Repository ignore policy
+        shell: bash
+        run: |
+          git check-ignore -q credit_demo.db
+          git check-ignore -q examples/frontend/node_modules
+          git check-ignore -q examples/frontend/dist
+          git check-ignore -q examples/backend/express/node_modules
+          if git check-ignore -q examples/frontend/package-lock.json; then
+            echo "package-lock.json must remain trackable"
+            exit 1
+          fi
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.17"
+      - name: Install dependencies (locked)
+        run: npm ci
+      - name: Jest tests
+        run: npm test -- --runInBand
+      - name: Production build
+        run: npm run build
+
+  express-example:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/backend/express
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.17"
+          cache: npm
+          cache-dependency-path: examples/backend/express/package-lock.json
+      - name: Install dependencies (locked)
+        run: npm ci
+      - name: Express SQLite tests
+        run: npm test
+      - name: Dependency audit
+        run: npm audit --audit-level=high

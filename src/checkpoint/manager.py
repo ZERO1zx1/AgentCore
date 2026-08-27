@@ -24,10 +24,20 @@ class CheckpointManager:
     def prune_old_checkpoints(self, protected_path: Optional[str] = None) -> list[str]:
         """Keep the newest task manifests; a task's active manifest is protected."""
         manifests = [os.path.join(self.checkpoint_dir, name) for name in os.listdir(self.checkpoint_dir) if name.endswith("_manifest.json")]
-        manifests.sort(key=lambda item: os.path.getmtime(item), reverse=True)
+        # Sort by mtime (newest first) with a deterministic tiebreaker so rapid
+        # saves within the same timestamp tick still keep the truly-latest file.
+        manifests.sort(key=lambda item: (os.path.getmtime(item), os.path.basename(item)), reverse=True)
         protected = os.path.abspath(protected_path) if protected_path else None
-        keep = set(manifests[: self.max_manifests])
-        if protected: keep.add(protected)
+        # Cap total kept at max_manifests while guaranteeing the protected file
+        # is retained. If protected isn't already in the newest N, keep N-1 of
+        # the newest plus the protected one (never N+1).
+        protected_in_top = protected is not None and protected in {
+            os.path.abspath(m) for m in manifests[: self.max_manifests]
+        }
+        keep_n = self.max_manifests if protected_in_top else self.max_manifests - 1
+        keep = {os.path.abspath(m) for m in manifests[:keep_n]}
+        if protected is not None:
+            keep.add(protected)
         removed = []
         for path in manifests:
             if os.path.abspath(path) in {os.path.abspath(item) for item in keep}: continue

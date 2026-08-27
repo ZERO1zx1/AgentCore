@@ -22,3 +22,23 @@ opencode.jsonc
 .cursor/
 .windsurf/
 .gemini/
+
+# Local SQLite databases and journals (examples)
+credit_demo.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Frontend dependencies and build output
+examples/frontend/node_modules/
+examples/frontend/dist/
+examples/frontend/.vite/
+node_modules/
+
+# Python / frontend test & build caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/

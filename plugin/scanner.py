@@ -190,7 +190,8 @@ def discover_components(target: Path) -> List[Dict[str, Any]]:
 def _component_for(full: Path, rel: Path) -> Dict[str, Any]:
     ext = rel.suffix.lower()
     try:
-        lines = sum(1 for _ in open(full, "r", encoding="utf-8", errors="replace"))
+        with open(full, "r", encoding="utf-8", errors="replace") as _f:
+            lines = sum(1 for _ in _f)
     except Exception:
         lines = 0
     try:

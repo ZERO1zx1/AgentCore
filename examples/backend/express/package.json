@@ -1,0 +1,20 @@
+{
+  "name": "agentcore-express-example",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Minimal credit-safe Express and SQLite integration example for AgentCore.",
+  "main": "usage_proxy.js",
+  "scripts": {
+    "start": "node usage_proxy.js",
+    "test": "node --test usage_proxy.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1"
+  },
+  "engines": {
+    "node": ">=20.17"
+  }
+}

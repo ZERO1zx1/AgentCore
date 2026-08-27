@@ -32,5 +32,5 @@ Recommended defaults and policies:
 
 How to run locally (quick):
 1. Install dependencies: httpx, pytest (for tests). Optional: aioredis.
-2. Run tests: pytest feat/low-cost-skill/tests
+2. Run tests: pytest feat/low_cost_skill/tests
 3. Use skill_low_cost.low_cost_request_sync("proj-1", "Hello world") in scripts for quick manual testing.

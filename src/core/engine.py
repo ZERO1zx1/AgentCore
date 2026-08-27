@@ -6,6 +6,7 @@ Provider-agnostic: the engine only knows prompt, capabilities, result, usage, ar
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
 from src.core.task import TaskInput
+from src.core.modes import ExecutionMode
 from src.core.context import TaskContext
 from src.core.execution_result import ExecutionResult
 from src.core.runtime_config import RuntimeConfig
@@ -619,3 +620,44 @@ class AgentCoreEngine:
 
 # Backward-compatible alias for legacy imports
 AgentCoreEngine = AgentCoreEngine
+
+
+def _main(argv: Optional[List[str]] = None) -> int:
+    """CLI entry point supporting the documented resume command.
+
+    Usage:
+        python -m src.core.engine --resume <task_id> --budget <amount>
+        python -m src.core.engine --prompt "<text>" --task-id <id> --budget <amount>
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="agentcore-engine", description="Run an AgentCore task or resume from a checkpoint.")
+    parser.add_argument("--prompt", default="Run the queued work.")
+    parser.add_argument("--task-id", default="cli_task")
+    parser.add_argument("--budget", type=float, default=10.0)
+    parser.add_argument("--budget-unit", default="USD")
+    parser.add_argument("--mode", choices=["AUTO", "FULL", "CREDIT_SAFE"], default="AUTO")
+    parser.add_argument("--resume", dest="resume_task_id", default=None, help="Resume a previous task by id")
+    parser.add_argument("--files", nargs="*", default=None)
+    parser.add_argument("--repo", default=None)
+    args = parser.parse_args(argv)
+
+    engine = AgentCoreEngine()
+    task = TaskInput(
+        prompt=args.prompt,
+        task_id=args.resume_task_id or args.task_id,
+        execution_mode=ExecutionMode[args.mode],
+        budget=args.budget,
+        budget_unit=args.budget_unit,
+        files=args.files or [],
+        repository=args.repo,
+        resume_task_id=args.resume_task_id,
+    )
+    engine.initialize_task(task)
+    report = engine.run_to_completion()
+    print(report)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
