@@ -29,14 +29,20 @@ jobs:
       - name: Repository ignore policy
         shell: bash
         run: |
-          git check-ignore -q credit_demo.db
-          git check-ignore -q examples/frontend/node_modules
-          git check-ignore -q examples/frontend/dist
-          git check-ignore -q examples/backend/express/node_modules
-          if git check-ignore -q examples/frontend/package-lock.json; then
-            echo "package-lock.json must remain trackable"
-            exit 1
-          fi
+          # Probe child paths because these ignored directories do not exist in
+          # the Python-only job. --no-index also checks rules for tracked files.
+          git check-ignore --no-index -q credit_demo.db
+          git check-ignore --no-index -q examples/frontend/node_modules/.ignore-probe
+          git check-ignore --no-index -q examples/frontend/dist/.ignore-probe
+          git check-ignore --no-index -q examples/backend/express/node_modules/.ignore-probe
+          for lockfile in \
+            examples/frontend/package-lock.json \
+            examples/backend/express/package-lock.json; do
+            if git check-ignore --no-index -q "$lockfile"; then
+              echo "$lockfile must remain trackable"
+              exit 1
+            fi
+          done
 
   frontend:
     runs-on: ubuntu-latest
