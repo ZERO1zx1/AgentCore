@@ -1,5 +1,7 @@
 # AgentCore Cross-Agent Plugin
 
+> This plugin distributes AgentCore skills and commands; it does not install a provider adapter or grant a target agent authority to spend, deploy, or access credentials.
+
 Install AgentCore skills and slash commands into any AI agent, and vet
 skills for security before they go anywhere.
 

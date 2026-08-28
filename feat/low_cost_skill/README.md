@@ -1,5 +1,7 @@
 # Low-cost Agent Skill
 
+> Proof of concept only. This module is not wired into `AgentCoreEngine` or its budget/checkpoint state; model names and prices must be verified with the selected provider.
+
 This folder contains a small proof-of-concept "low-cost" skill that can be integrated into an AI agent to reduce credit usage by:
 - Calling a cheap model first and escalating only when necessary (tiered flow)
 - Summarizing/trimming prompts before sending

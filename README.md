@@ -1,204 +1,74 @@
 # AgentCore
 
-> **Provider-Agnostic AI Agent Execution Framework**
+AgentCore is a provider-agnostic, budget-aware execution engine for repositories, text, data, PDFs, and verified media attachments. It plans dependency-aware work units, routes them by capability, records costs with `Decimal`, persists artifacts, and resumes from a task manifest.
 
-**AgentCore** is a provider-agnostic, budget-aware, resumable AI agent execution framework for cloud models, local models, coding agents, custom runtimes, and future AI providers. It implements a robust agentic engine capable of handling software repositories, structured data, and parsed documents while protecting the user's execution budget through incremental checkpointing and capability-aware routing.
+> The bundled model registry and `FakeExecutor` are offline demonstrations. They do not call a provider. Real execution requires your own `OperationExecutor` adapter.
 
-AgentCore is designed to remain independent of any single AI provider, agent platform, or model runtime. Its three-skill architecture uses `adaptive-omni-agent` for intent/capability orchestration, `code-engineer` for artifact work, and `credit-safe-agent` for budget/checkpoint control. External runtimes integrate through the `OperationExecutor` adapter contract.
+## Start here
 
----
+AgentCore requires Python 3.10+. Install the test dependencies and run the suite:
 
-## Architecture: Provider-Agnostic
-
-```text
-AI Runtime / Provider
-        ↓
-OperationExecutor Adapter
-        ↓
-Adaptive Omni Orchestrator
-        ↓
-Code Engineer + Credit-Safe Controller
-        ↓
-AgentCore
-        ↓
-Input / Context / Planner / WorkUnits
-        ↓
-Budget / Policy / Routing
-        ↓
-Execution / Artifacts
-        ↓
-Checkpoint / Resume
-```
-
-The engine only knows:
-- **prompt** — the instruction + resolved context
-- **capabilities** — what the model must be able to do
-- **result** — the `ExecutionResult`
-- **usage** — token/cost accounting
-- **artifacts** — real files persisted to disk
-
-The engine does **not** know or depend on any specific provider SDK (OpenAI, Anthropic, Gemini, Kimi, Ollama, etc.).
-
-### Integration Through OperationExecutor
-
-Any external runtime can be integrated by implementing the `OperationExecutor` contract:
-
-```python
-from src.core.executor import OperationExecutor
-from src.core.execution_result import ExecutionResult
-
-class MyExecutor(OperationExecutor):
-    def execute(self, unit_type, model_id, prompt, context=None) -> ExecutionResult:
-        # Call your provider/runtime here
-        response = my_provider(prompt)
-        return ExecutionResult(
-            success=True,
-            output_text=response["text"],
-            usage={"input_tokens": ..., "output_tokens": ...},
-            provider="my-provider",
-            model_id=model_id,
-        )
-```
-
-> **Note**: This is an *integration boundary*, not a built-in provider. Specific providers can be integrated through this adapter; none are claimed to be "fully supported" unless actually tested.
-
----
-
-## Core Execution Modes
-
-AgentCore execution modes:
-
-| Mode | Philosophy | Best For |
-| :--- | :--- | :--- |
-| **AUTO** | Dynamic Efficiency | General-purpose tasks and daily workflows |
-| **FULL** | Maximum Quality | Complex engineering and high-stakes research |
-| **CREDIT_SAFE** | Budget Protection | Large-scale processing and cost-constrained tasks |
-
----
-
-## Support Matrix
-
-| Capability | Status | Implementation |
-| :--- | :--- | :--- |
-| **Repository** | Supported | Deterministic file tree, manifests, relevant source selection, SHA-256 fingerprint |
-| **Text (TXT/MD)** | Supported | Deterministic reading, chunking, SHA-256 |
-| **JSON** | Supported | Local parse, structure metadata, subset extraction |
-| **CSV** | Supported | Headers, row/column counts, subset extraction |
-| **PDF** | Supported | Real parsing via `pypdf`, chunking, text extraction, hashing |
-| **Budget-aware execution** | Supported | Decimal-safe accounting, P0-P4 prioritization, estimate-vs-actual separation |
-| **Three-skill orchestration** | Supported | Persistent primary/active skill route per work unit |
-| **Checkpoint / Resume** | Supported | SHA-256 fingerprinting, V3 Task Manifests, source-change invalidation |
-| **Source fingerprint invalidation** | Supported | Granular, dependency-aware invalidation |
-| **Real artifact persistence** | Supported | Real files written to `.agentcore/` |
-| **Provider adapter contract** | Supported | `OperationExecutor` integration boundary |
-| **Real model/provider execution** | Requires external adapter | `OperationExecutor` adapter required |
-| **FakeExecutor** | Test/Demo only | Offline deterministic execution, no real model calls |
-| **DOCX / XLSX / PPTX** | Metadata routing | Bounded type/size/hash inspection; semantic processing requires capable external tool/model |
-| **Image / Video / Audio** | Attachment routing | Verified path-based content parts (MIME, modality, size, SHA-256) are delivered to capable provider adapters |
-
----
-
-## Real Context Delivery
-
-WorkUnits receive **actual relevant source content**, not just metadata:
-
-- **Repository tasks**: selected relevant source files (with content) are included in the prompt
-- **PDF tasks**: extracted text chunks are persisted and included
-- **Text/Markdown tasks**: relevant text chunks are included
-- **JSON/CSV tasks**: selected records/headers are included
-- **Image/audio/video tasks**: binary content is delivered outside the text prompt through `context["attachments"]`; adapters translate verified local paths to provider-native content parts
-
-Context is deterministic and size-limited (`RuntimeConfig` controls `max_context_chars`, `max_file_chars`, `max_chunk_count`).
-Attachment count and total bytes are also bounded. `CREDIT_SAFE` uses the smallest byte allowance; skipped oversized assets remain available as metadata without consuming prompt tokens.
-
-### Multimodal executor contract
-
-`OperationExecutor.execute(..., context=...)` receives an `attachments` list. Each item contains `content_mode="path"`, an absolute `path`, `mime_type`, `modality`, `size`, and verified `sha256`. Provider adapters must read/stream the path and convert it to their native image/audio/video input format. Base64 is intentionally excluded from text prompts.
-
----
-
-## Cost Accounting
-
-The engine keeps **estimates separate from actual verified costs**:
-
-- `estimated_cost` — estimated before execution (affordability check)
-- `charged_cost` — what was actually charged to the budget
-- `actual_cost` — provider-reported cost if available
-- `cost_source` — `provider` (verified) or `estimate` (not verified)
-
-Estimated cost is **never** reported as provider-confirmed billing.
-
----
-
-## Installation & Dependencies
-
-Install required dependencies for PDF processing and document ingestion:
 ```bash
-pip3 install -r requirements.txt
+python -m venv .venv
+# Windows: .venv\\Scripts\\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pytest tests -v
 ```
-If `pypdf` is unavailable, direct PDF processing raises a typed dependency error and `AgentCoreEngine.initialize_task()` persists a `BLOCKED / DEPENDENCY_UNAVAILABLE` manifest rather than crashing or returning placeholder content.
 
----
+`pypdf` is the runtime PDF dependency. If unavailable, a PDF task is persisted as `BLOCKED` with `DEPENDENCY_UNAVAILABLE`; AgentCore does not return placeholder extraction.
 
-## Executor Architecture
-
-AgentCore uses an injectable `OperationExecutor` interface:
-- **`FakeExecutor`**: Used by default for unit testing and offline demonstrations. It does **not** perform real autonomous model execution.
-- **`ProductionProviderExecutor`**: An extensible adapter template. Applications performing real production work must supply a configured provider adapter implementing `OperationExecutor`.
-
-### Quick Start (Demo with FakeExecutor)
 ```python
 from src.core.engine import AgentCoreEngine
-from src.core.task import TaskInput
-from src.core.modes import ExecutionMode
 from src.core.executor import FakeExecutor
+from src.core.task import TaskInput
 
-# Engine defaults to FakeExecutor for offline safety
 engine = AgentCoreEngine(executor=FakeExecutor())
-task = TaskInput(
-    prompt="Analyze repository",
-    task_id="task_demo",
-    execution_mode=ExecutionMode.AUTO,
-    budget=10.0
-)
-
-engine.initialize_task(task)
-engine.run_to_completion()
+engine.initialize_task(TaskInput(
+    prompt="Inspect this repository and summarize its structure",
+    task_id="demo", repository=".", budget=10.0,
+))
+print(engine.run_to_completion())
 ```
 
----
+The demo writes to `.agentcore/tasks/demo/` and `.agentcore/checkpoints/`; its usage is illustrative, not a bill.
 
-## Task Status
+## Architecture
 
-Top-level statuses:
+```text
+TaskInput -> InputRouter -> TaskContext -> AdaptiveOrchestrator
+          -> Planner -> WorkUnit graph -> Scheduler -> ModelRouter
+          -> OperationExecutor -> ArtifactManager / CheckpointManager -> report
+                              ^
+                         BudgetManager
+```
 
-- `COMPLETED`
-- `PARTIALLY_COMPLETED`
-- `BLOCKED`
-- `FAILED`
+The public operating policies are [adaptive-omni-agent](skills/adaptive-omni-agent/SKILL.md), [code-engineer](skills/code-engineer/SKILL.md), and [credit-safe-agent](skills/credit-safe-agent/SKILL.md). [adaptive-local-memory](skills/adaptive-local-memory/SKILL.md) is an internal evidence-recall subsystem.
 
-Reason codes:
+## Modes and budget safety
 
-- `BUDGET_LIMIT`
-- `PROVIDER_NOT_CONFIGURED`
-- `DEPENDENCY_MISSING`
-- `SOURCE_CHANGED`
-- `EXECUTION_ERROR`
-- `VALIDATION_ERROR`
-- `NONE`
+| Mode | Intent |
+| --- | --- |
+| `AUTO` | Practical default; adapts preferred tier to budget state. |
+| `FULL` | Prefers stronger coding routes while the budget allows. |
+| `CREDIT_SAFE` | Prefers the lowest capable route and drops optional work early. |
 
----
+The engine reserves 15% of the initial budget by default. It distinguishes `estimated_cost`, `charged_cost`, `actual_cost`, and `cost_source`; only adapter-supplied cost can be provider-confirmed. [Budget policy](references/budget-policy.md) and [execution modes](references/execution-modes.md) describe the exact behavior.
 
-## Legacy Compatibility
+## Provider adapters and inputs
 
-AgentCore was previously developed under the name "Manus Mini".
+Implement `OperationExecutor.execute(unit_type, model_id, prompt, context)` and return `ExecutionResult`. Register accurate production `ModelSpec` values in an injected `ModelRegistry`. The engine delivers media as verified path descriptors in `context["attachments"]` (path, MIME type, modality, byte size, SHA-256); adapters convert them to their provider format. Binary/base64 content is never appended to prompts.
 
-Existing imports or runtime paths may remain temporarily supported for backward compatibility:
+Repositories, text, JSON/CSV, and PDFs receive built-in routing. Images, audio, video, and office files receive metadata/path routing; semantic processing requires a capable adapter. Read [checkpointing](references/checkpointing.md), [model routing](references/model-routing.md), and the [output contract](references/output-contract.md) before integrating production execution.
 
-- `from src.core.engine import AgentCoreEngine` is the standard import
-- Legacy `.manus-mini/` runtime data is not deleted; new tasks use `.agentcore/`
+### Private local artifacts (Windows)
 
----
+Set `RuntimeConfig(private_artifacts=True)` to use one private task directory: `context/` stores persisted inputs, `artifacts/` stores generated outputs, and `checkpoints/` stores that task's manifest. On Windows, AgentCore removes inherited ACL entries and grants Full Control to the current Windows identity plus the operating system's `SYSTEM` account. On macOS and Linux, it applies owner-only `0700` permissions. Unsupported platforms, or failed permission changes, fail closed. This does not encrypt data, defeat a Windows administrator who takes ownership, or grant access to another person's device.
+
+## Development and security
+
+Read [AGENTS.md](AGENTS.md) before changing the project. Keep provider keys and notification secrets out of source, manifests, logs, and local memory. Do not authorize purchases or automatically stage unrelated changes during recovery. The low-cost code in [feat/low_cost_skill](feat/low_cost_skill/README.md) is a separate proof of concept, not engine wiring.
 
 ## License
+
 MIT License.

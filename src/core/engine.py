@@ -43,11 +43,17 @@ class AgentCoreEngine:
         notification_config: Optional[Dict[str, Any]] = None,
     ):
         self.runtime_config = runtime_config or RuntimeConfig()
-        self.checkpoint_manager = CheckpointManager(checkpoint_dir or self.runtime_config.checkpoint_root)
+        self.checkpoint_manager = CheckpointManager(
+            checkpoint_dir or self.runtime_config.checkpoint_root,
+            private_task_root=self.runtime_config.artifact_root if self.runtime_config.private_artifacts else None,
+        )
         self.executor = executor or FakeExecutor()
         self.model_registry = model_registry or ModelRegistry()
         self.model_router = ModelRouter(self.model_registry)
-        self.artifact_manager = artifact_manager or ArtifactManager(base_dir=self.runtime_config.artifact_root)
+        self.artifact_manager = artifact_manager or ArtifactManager(
+            base_dir=self.runtime_config.artifact_root,
+            private_artifacts=self.runtime_config.private_artifacts,
+        )
         self.context_resolver = ContextResolver(self.runtime_config)
         self.budget_manager: Optional[BudgetManager] = None
         self.current_manifest: Optional[TaskManifest] = None
@@ -69,8 +75,7 @@ class AgentCoreEngine:
         # --- NEW TASK FLOW ---
 
         # Step 1: Route inputs to processors and build TaskContext
-        context_dir = os.path.join(self.artifact_manager.task_dir(task_input.task_id), "context")
-        os.makedirs(context_dir, exist_ok=True)
+        context_dir = self.artifact_manager.resolve_context_dir(task_input.task_id)
         try:
             context = InputRouter.route(
                 task_id=task_input.task_id,

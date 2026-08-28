@@ -5,6 +5,7 @@ Manifest entries always point to REAL files.
 import os
 import re
 import json
+import subprocess
 from typing import Dict, Any, List, Optional
 
 
@@ -17,8 +18,37 @@ def sanitize_filename(name: str) -> str:
 
 
 class ArtifactManager:
-    def __init__(self, base_dir: str = ".agentcore/tasks"):
+    def __init__(self, base_dir: str = ".agentcore/tasks", private_artifacts: bool = False):
         self.base_dir = base_dir
+        self.private_artifacts = private_artifacts
+
+    def _apply_private_acl(self, path: str) -> None:
+        """Restrict a task directory to the current Windows identity and SYSTEM.
+
+        Windows administrators can still take ownership; this protects against
+        ordinary accounts that inherit access from a shared parent directory.
+        """
+        if os.name == "posix":
+            try:
+                os.chmod(path, 0o700)
+            except OSError as exc:
+                raise RuntimeError(f"Unable to apply private artifact permissions: {exc}") from exc
+            return
+        if os.name != "nt":
+            raise RuntimeError("private_artifacts is supported on Windows, macOS, and Linux only")
+        identity = subprocess.run(
+            ["whoami"], capture_output=True, text=True, check=True, timeout=10
+        ).stdout.strip()
+        if not identity:
+            raise RuntimeError("Unable to determine the current Windows identity")
+        try:
+            subprocess.run(
+                ["icacls", path, "/inheritance:r", "/grant:r",
+                 f"{identity}:(OI)(CI)F", "/grant:r", "SYSTEM:(OI)(CI)F"],
+                capture_output=True, text=True, check=True, timeout=15,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError(f"Unable to apply private artifact permissions: {exc}") from exc
 
     def task_dir(self, task_id: str) -> str:
         safe = sanitize_filename(task_id)
@@ -26,6 +56,11 @@ class ArtifactManager:
 
     def context_dir(self, task_id: str) -> str:
         return os.path.join(self.task_dir(task_id), "context")
+
+    def resolve_context_dir(self, task_id: str) -> str:
+        """Create and protect a task's persisted input-context directory."""
+        self._ensure_dir(self.task_dir(task_id))
+        return self._ensure_dir(self.context_dir(task_id))
 
     def artifacts_dir(self, task_id: str) -> str:
         return os.path.join(self.task_dir(task_id), "artifacts")
@@ -40,6 +75,8 @@ class ArtifactManager:
         if not resolved.startswith(base + os.sep) and resolved != base:
             raise ValueError(f"Refusing to write outside artifact base dir: {resolved}")
         os.makedirs(resolved, exist_ok=True)
+        if self.private_artifacts:
+            self._apply_private_acl(resolved)
         return resolved
 
     def _resolve_under_task(self, task_id: str, category: str, filename: str) -> str:

@@ -17,6 +17,7 @@ class RuntimeConfig:
     max_attachment_bytes_full: int = 100 * 1024 * 1024
     max_attachment_count: int = 8
     artifact_root: str = ".agentcore/tasks"
+    private_artifacts: bool = False
     checkpoint_root: str = ".agentcore/checkpoints"
     retry_limit: int = 2
     max_attempts: int = 2

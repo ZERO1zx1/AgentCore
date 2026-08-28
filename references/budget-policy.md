@@ -1,28 +1,15 @@
-# Budget Policy
+# Budget policy
 
-AgentCore implements a rigorous budget management system to ensure that no paid work is ever lost.
+`BudgetManager` uses `decimal.Decimal` and tracks initial, used, remaining, reserved, and usable budget. It does not discover provider balance or authorize spending.
 
-## Budget States
+| State | Trigger | Result |
+| --- | --- | --- |
+| `NORMAL` | More than 50% remains. | Regular routing. |
+| `CONSERVE` | 50% or less remains. | Lower preferred tiers where capable. |
+| `CRITICAL` | 25% or less remains. | Optional P3/P4 work is skipped. |
+| `EMERGENCY` | 10% or less remains, or a reserve boundary is reached. | No new unit starts; state is persisted. |
+| `EXHAUSTED` | No budget remains. | No execution starts; state is persisted/reported. |
 
-- **NORMAL**: Full capabilities enabled.
-- **CONSERVE**: Prefer lower-cost models for non-critical tasks.
-- **CRITICAL**: Disable optional enhancements (P3/P4). Aggressive checkpointing enabled.
-- **EMERGENCY**: Stop all paid execution. Use remaining reserve only for saving outputs and manifests.
-- **EXHAUSTED**: All execution stopped.
+The reserve is 15% by default and wins over percentage labels. `can_afford()` rejects an operation that would enter it. For every attempted unit, preserve `estimated_cost`, `charged_cost`, `actual_cost`, and `cost_source`. `actual_cost` is provider-confirmed only when returned by the adapter; otherwise the charged estimate is marked `estimate`.
 
-## Emergency Reserve
-
-The system reserves a portion of the initial budget (default 15%) as an **Emergency Output Reserve**. This reserve is strictly protected and used only for:
-- Saving generated artifacts and code implementation.
-- Writing the final task manifest and resume instructions.
-- Serializing completed analysis.
-
-## Task Priorities
-
-| Priority | Description | Action Under Constraint |
-| :--- | :--- | :--- |
-| **P0** | Primary Deliverable | Protected until EMERGENCY state |
-| **P1** | Correctness Critical | Protected until EMERGENCY state |
-| **P2** | Validation | Reduced to targeted critical tests |
-| **P3** | Enhancements | Dropped in CONSERVE/CRITICAL states |
-| **P4** | Polish | Dropped in CONSERVE/CRITICAL states |
+P0 is the required deliverable, P1 core correctness/final output, P2 important validation, P3 enhancement, and P4 polish or experiments. See [execution modes](execution-modes.md) and [checkpointing](checkpointing.md).

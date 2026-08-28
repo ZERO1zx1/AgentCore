@@ -5,14 +5,23 @@ import os
 import json
 from typing import Dict, Any, Optional
 from src.checkpoint.manifest import TaskManifest
+from src.output.artifact_manager import sanitize_filename
 
 class CheckpointManager:
-    def __init__(self, checkpoint_dir: str = ".agentcore/checkpoints", max_manifests: int = 100):
+    def __init__(self, checkpoint_dir: str = ".agentcore/checkpoints", max_manifests: int = 100,
+                 private_task_root: Optional[str] = None):
         self.checkpoint_dir = checkpoint_dir
+        self.private_task_root = private_task_root
         self.max_manifests = max(1, int(max_manifests))
-        os.makedirs(self.checkpoint_dir, exist_ok=True)
+        if not self.private_task_root:
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
 
     def get_manifest_path(self, task_id: str) -> str:
+        if self.private_task_root:
+            return os.path.join(
+                self.private_task_root, sanitize_filename(task_id), "checkpoints",
+                f"{sanitize_filename(task_id)}_manifest.json",
+            )
         return os.path.join(self.checkpoint_dir, f"{task_id}_manifest.json")
 
     def save_checkpoint(self, manifest: TaskManifest) -> str:
@@ -23,7 +32,11 @@ class CheckpointManager:
 
     def prune_old_checkpoints(self, protected_path: Optional[str] = None) -> list[str]:
         """Keep the newest task manifests; a task's active manifest is protected."""
-        manifests = [os.path.join(self.checkpoint_dir, name) for name in os.listdir(self.checkpoint_dir) if name.endswith("_manifest.json")]
+        if self.private_task_root:
+            checkpoint_dir = os.path.dirname(protected_path) if protected_path else self.private_task_root
+        else:
+            checkpoint_dir = self.checkpoint_dir
+        manifests = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir) if name.endswith("_manifest.json")]
         # Sort by mtime (newest first) with a deterministic tiebreaker so rapid
         # saves within the same timestamp tick still keep the truly-latest file.
         manifests.sort(key=lambda item: (os.path.getmtime(item), os.path.basename(item)), reverse=True)

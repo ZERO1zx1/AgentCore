@@ -1,23 +1,12 @@
-# Output Contract
+# Output and reporting contract
 
-Every AgentCore task concludes with a factual execution report and a defined status.
+Successful units can persist text/code through `ArtifactManager`; their paths are added to the manifest. `run_to_completion()` returns an `OutputManager` report based on that manifest.
 
-## Task Statuses
+| Status | Meaning |
+| --- | --- |
+| `COMPLETED` | Required work units completed. |
+| `PARTIALLY_COMPLETED` | Useful output exists, but required work remains. |
+| `BLOCKED` | A dependency or capable model route is unavailable. |
+| `FAILED` | Execution failed or attempts were exhausted. |
 
-- **COMPLETED**: The primary deliverable is finished and validated.
-- **PARTIALLY_COMPLETED**: Useful work was produced, but some tasks remain (often due to budget exhaustion).
-- **BLOCKED**: Execution cannot proceed due to missing requirements (tools, inputs, or credentials).
-- **FAILED**: An unrecoverable error occurred, and no useful output was produced.
-
-## Execution Report
-
-The final report includes:
-- **Completed Work**: A summary of all finished units.
-- **Saved Outputs**: Links to implementation files, reports, and artifacts.
-- **Validation Summary**: PASS/FAIL/NOT_RUN status for all planned validation steps.
-- **Budget Summary**: Total initial budget, used credits, and final state.
-- **Resume Instructions**: Precise steps to continue the task if partially completed.
-
-## Code-First Policy
-
-When the requested deliverable is software, AgentCore prioritizes the production of actual source files, configuration, and tests over long-form conversational explanations.
+Reports should state completed and remaining units, saved paths, validation evidence (including checks not run), budget and cost-source evidence, errors, and an exact resume action. Do not call a file validated merely because it exists or call fake usage provider billing. Safe target outputs are relative paths without `..`; absolute/traversal targets are rejected.

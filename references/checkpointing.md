@@ -1,29 +1,9 @@
-# Checkpointing and Resumability
+# Checkpointing and resuming
 
-The checkpoint manager keeps one current manifest per task and, by default, retains the newest 100 task manifests. Retention is configurable with `CheckpointManager(max_manifests=...)`.
+`CheckpointManager` writes `.agentcore/checkpoints/{task_id}_manifest.json` by default, after initialization and each attempted unit. It retains the newest 100 manifests unless `max_manifests` is changed.
 
-When budget exhaustion triggers Git persistence, only the explicit task checkpoint is staged. Unrelated working-tree files must never be added to that automated commit.
+Schema 3.0 manifests store task input, progress, budget snapshot, outputs, errors, usage/model history, serialized context, work units, and orchestration route. They are inspectable resume state, not a secret store.
 
-AgentCore ensures that all progress is persistent and resumable, preventing the need to repeat expensive paid operations.
+Set `TaskInput.resume_task_id` to restore state. AgentCore recomputes source fingerprints, reopens completed units affected by a changed source, and also reopens dependent units; unrelated completed work remains complete. A larger supplied resume budget can raise the initial budget but does not erase recorded usage.
 
-## Checkpoint Invariants
-
-Checkpoints are triggered after every meaningful atomic unit of work:
-- **Code**: After repository discovery, implementation units, and successful critical tests.
-- **Documents**: After processing page groups, chapters, or extraction stages.
-- **Multimodal**: After scene detection, keyframe analysis, or UI specification generation.
-
-## Task Manifest
-
-The task manifest tracks:
-- **Source Fingerprints**: SHA-256 hashes of input files to detect changes.
-- **Work Units**: List of completed and pending tasks.
-- **Budget Tracking**: Real-time usage and remaining balance.
-- **Artifact Map**: Pointers to all generated files and intermediate results.
-
-## Resumption Workflow
-
-1. The engine loads the existing manifest using the `task_id`.
-2. Fingerprints are verified against current inputs.
-3. Completed work units are skipped.
-4. Execution resumes from the exact next pending unit.
+At emergency/exhausted state, AgentCore saves a partial manifest and calls configured Git/notification managers. Automated Git persistence is restricted to the explicit checkpoint file and must never stage unrelated work. See [output contract](output-contract.md).

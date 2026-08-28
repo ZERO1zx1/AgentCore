@@ -1,35 +1,39 @@
-# CREDIT MANAGEMENT (DRAFT)
+# Credit-management integration draft
 
-Энэхүү баримт нь AgentCore төслд AI провайдерийн кредит/коин зарцуулалтыг хэмжих, харуулах, дохиолох, мөн automatic policy-үүдээр зарцуулалтыг хянах ерөнхий архитектур, өгөгдлийн схем, болон жишээ кодыг агуулж байна.
+This document describes an optional application layer for collecting provider usage and enforcing account-level credit policies. It is not implemented by AgentCore itself and must not be confused with the engine’s local estimate/reserve accounting.
 
-Энд байгаа зүйлс нь DRAFT — та болон багийн гишүүд шалгаж, сайжруулж болно.
+## Goal
 
-## Товч хураангуй
+Route authenticated provider requests through a server-side proxy, record provider usage, maintain a project balance, and apply transparent policy decisions. Keep provider billing reconciliation separate from request-time estimates.
 
-- Бүх AI хүсэлтийг серверээр proxy хийж, provider-ээс буцсан usage metadata-ийг бичнэ.
-- Usage-аа local DB-д хадгалаад төслийн credit_balance-ийг шинэчилнэ.
-- Policy engine-д threshold-уудыг тохируулж, авто-degrade эсвэл pause хийх боломжтой.
-- Provider-ийн биллийн мэдээлэлтэй reconciliation хийх worker-ийг өдөр тутам ажиллуулна.
+## Suggested model
 
-## Шаардлагатай таблианууд (жишээ)
-- projects (credit_balance)
-- usage_records (prompt_tokens, completion_tokens, estimated_cost, provider_request_id)
-- policies
+| Table | Minimum purpose |
+| --- | --- |
+| `projects` | Project identity and current credit balance. |
+| `usage_records` | Project, provider request ID, model, token counts, estimated/actual cost, timestamp. |
+| `policies` | Versioned threshold and authorization rules. |
 
-## Quick start
-1. Branch: `docs/credit-management` дээр файлууд бэлэн болсон.
-2. Local run: examples/backend/fastapi/usage_proxy.py ашиглан proxy серверыг тестлэх.
-3. DB: examples/db/schema.sql скриптийг ажиллуулж эхний схемийг үүсгэх.
+Use the example schema in `examples/db/schema.sql` as a starting point, not a production migration. Add tenant isolation, idempotency, foreign keys, indexes, retention, and audit requirements for the target system.
 
-## Худалдан авалт, Auto-topup
-- Auto-topup-г эхэндээ унтраасан байлга; зөвхөн админ ба проект эзний заавал зөвшөөрлөөр асаана.
-- Agent-ууд нь зөвхөн авто-degrade хийх эрхтэй байж болно (хямд модел руу шилжих), харин төлбөр хийх боломжгүй.
+## Safe flow
 
-## Next steps
-- Unit tests (mock provider) нэмэх.
-- Reconciliation worker-ийг хийнэ.
-- Dashboard UI-тай холбох.
+1. Authenticate and authorize the project before forwarding a request.
+2. Apply a request-time allowance using an upper-bound estimate.
+3. Send the request through a server-only provider client; never expose provider keys to the browser.
+4. Persist the response usage and provider request ID idempotently.
+5. Reconcile against provider data on a scheduled worker, retaining both estimates and verified amounts.
+6. Notify on policy changes without including secrets or prompt contents.
 
----
+The FastAPI and Express examples are illustrative proxy snippets. They need production authentication, rate limiting, secure secret management, error handling, observability, and provider-specific verification before deployment.
 
-DRAFT: энэ файлд та засвар хийж, илүү нарийвчилсан заавар нэмнэ үү.
+## Policy and security
+
+Start with auto-top-up disabled. Only an explicitly authorized owner/admin workflow should create a purchase or payment action; an agent may recommend degradation or pause but must not spend money. Use least privilege, encrypt sensitive data at rest where required, redact logs, validate webhooks, rate-limit endpoints, and retain an auditable policy decision for each denied/degraded request.
+
+## Next work
+
+- Add migrations and tests for idempotent usage ingestion.
+- Define provider reconciliation and dispute handling.
+- Build a role-aware dashboard from verified data.
+- Document notification delivery, retention, and incident response.

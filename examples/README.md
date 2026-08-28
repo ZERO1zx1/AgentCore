@@ -1,5 +1,7 @@
 # AgentCore Examples
 
+> These integration sketches are not a production billing system and are separate from AgentCore’s engine execution path. Add authentication, tenant isolation, idempotency, rate limits, and secret management before deployment.
+
 Reference implementations for integrating AgentCore-style credit accounting
 into an application. These are minimal demos — adapt to your real database,
 provider client, and auth.

@@ -1,9 +1,5 @@
-# Memory event schema
+# Memory schema
 
-The store is append-only JSON Lines. Each line is independently parseable UTF-8 JSON.
+The store is UTF-8 JSON Lines. `lesson` events include an ID, timestamp, scope, problem, cause, action, evidence, tags, and `candidate` or `verified` status. `feedback` events include the lesson ID, timestamp, success/failure result, and evidence.
 
-Lesson events contain `event=lesson`, `id`, `created_at`, `scope`, `problem`, `cause`, `action`, `evidence`, `tags`, and `status` (`candidate` or `verified`). Feedback events contain `event=feedback`, `lesson_id`, `created_at`, `result` (`success` or `failure`), and `evidence`.
-
-Retrieval tokenizes the query and lesson fields, then ranks by lexical overlap. Verified lessons receive a small boost. Success feedback increases confidence; failure feedback decreases it more strongly. Malformed lines are ignored with a warning so an interrupted append does not make earlier memory unusable.
-
-The default project quota is 100 lessons or 512 KiB. At the boundary, compaction retains the strongest 80 lessons and their feedback using atomic file replacement. Use `memory.py validate` to check schema and references, `memory.py stats` for counts and quota usage, and `memory.py compact` for manual cleanup.
+Retrieval ranks lexical overlap, boosts verified lessons, increases confidence after success feedback, and reduces it more strongly after failure. Malformed lines are ignored with a warning. At quota, compaction retains the strongest 80 lessons and related feedback using atomic replacement. Run `memory.py validate` after moving or manually editing a store.

@@ -1,27 +1,16 @@
 ---
 name: agentcore
-description: >
-  Provider-agnostic, budget-aware AI agent execution framework.
-  Supports AUTO, FULL, and CREDIT_SAFE execution while preserving progress,
-  validating real work, and resuming instead of repeating completed work.
+description: Provider-agnostic, budget-aware, resumable execution for local projects and supplied artifacts.
 ---
 
-# AgentCore
+# AgentCore operating guide
 
-You are a provider-agnostic, budget-aware autonomous agent execution framework using three coordinated roles: `adaptive-omni-agent` animates and routes the request, `code-engineer` performs artifact-aware work, and `credit-safe-agent` protects cost, checkpoints, and resume state. `adaptive-local-memory` is an internal bounded evidence subsystem, not a fourth public role.
+Use AgentCore to produce bounded, evidenced work. Inspect current artifacts first, divide the outcome into P0–P4 work units, choose deterministic tooling before a model, then select a model by capability before price.
 
-## Execution Modes
+- Preserve the default 15% reserve and checkpoint meaningful completed work.
+- Label costs as provider-confirmed, estimated, or unknown; never present fake-executor output as billing.
+- Validate the artifact in its real form and report completed, skipped, blocked, and unverified work separately.
+- Treat the three public policy roles as `adaptive-omni-agent`, `code-engineer`, and `credit-safe-agent`; `adaptive-local-memory` is internal, fallible recall.
+- Real provider work requires an `OperationExecutor`; AgentCore ships no provider SDK integration.
 
-1. **AUTO (Default)**: Dynamically adapts behavior based on task complexity, input size, and remaining budget.
-2. **FULL**: Prioritizes completion and quality. Uses broader validation and stronger models even under budget constraints.
-3. **CREDIT_SAFE**: Prioritizes cost efficiency. Uses cheapest-capable routing, aggressive checkpointing, and skips optional work.
-
-## Operating Principles
-
-- **Budget-First Planning**: Convert inputs into prioritized WorkUnits (P0-P4).
-- **Capability-Aware Routing**: Filter models by capability (vision, coding, etc.) before cost optimization.
-- **Decimal-Safe Resumption**: Always preserve budget state as Decimals to ensure accounting integrity.
-- **Incremental Checkpointing**: Save progress after every atomic unit to ensure resumability.
-- **Emergency Reserve**: Never consume the final 15% of budget on optional or non-rescue work.
-- **Factual Reporting**: Produce reports that distinguish between completed, skipped, and blocked work.
-- **Three-Skill Persistence**: Store primary/active skill routing, artifact capabilities, validation routes, and memory-hit IDs in TaskManifest V3.
+See [README.md](README.md) for setup, [AGENTS.md](AGENTS.md) for repository conventions, and [references](references/) for the implementation-aligned policies.
