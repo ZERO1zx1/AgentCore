@@ -1,7 +1,10 @@
-"""Three-skill orchestration and deterministic capability profiling."""
+"""Adaptive orchestration with evidence-first local learning."""
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Set
+import hashlib
+import json
+from src.memory.governance import POLICY_VERSION
 
 SKILL_ADAPTIVE = "adaptive-omni-agent"
 SKILL_ENGINEER = "code-engineer"
@@ -28,6 +31,10 @@ class OrchestrationProfile:
     validation_routes: List[str] = field(default_factory=list)
     assumptions: List[str] = field(default_factory=list)
     memory_query: str = ""
+    memory_policy: str = "evidence-first-bounded-local-lessons"
+    memory_policy_version: str = POLICY_VERSION
+    memory_scope: str = "project"
+    task_fingerprint: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -39,11 +46,20 @@ class OrchestrationProfile:
             "validation_routes": list(self.validation_routes),
             "assumptions": list(self.assumptions),
             "memory_query": self.memory_query,
+            "memory_policy": self.memory_policy,
+            "memory_policy_version": self.memory_policy_version,
+            "memory_scope": self.memory_scope,
+            "task_fingerprint": self.task_fingerprint,
         }
 
 
 class AdaptiveOrchestrator:
-    """Turn prompt plus observed artifacts into a bounded three-skill route."""
+    """Turn prompt and observed artifacts into bounded work with fallible local lessons.
+
+    The adaptive-omni-agent role owns both orchestration and memory recall.
+    Recalled lessons help choose a route, but current files, instructions, and
+    validation evidence always take precedence.
+    """
 
     @staticmethod
     def profile(prompt: str, context, requested_skill: str = SKILL_ADAPTIVE) -> OrchestrationProfile:
@@ -80,6 +96,11 @@ class AdaptiveOrchestrator:
 
         objective = " ".join(prompt.split()).strip() or "Inspect the supplied workspace and identify a bounded useful outcome"
         query_terms = [objective] + sorted(artifacts) + sorted(capabilities)
+        source_fingerprints = getattr(context, "source_fingerprints", {}) or {}
+        fingerprint_data = {"objective": objective.lower(), "artifacts": sorted(artifacts),
+                            "capabilities": sorted(capabilities), "sources": sorted(source_fingerprints.items())}
+        task_fingerprint = hashlib.sha256(json.dumps(fingerprint_data, sort_keys=True).encode("utf-8")).hexdigest()
+        memory_scope = str((getattr(context, "metadata", {}) or {}).get("memory_scope", "project"))
         return OrchestrationProfile(
             primary_skill=primary,
             active_skills=active,
@@ -89,6 +110,8 @@ class AdaptiveOrchestrator:
             validation_routes=sorted(validations or {"observable output check"}),
             assumptions=[] if prompt.strip() else ["No explicit prompt was supplied; inspection remains read-only."],
             memory_query=" ".join(query_terms)[:500],
+            memory_scope=memory_scope,
+            task_fingerprint=task_fingerprint,
         )
 
     @staticmethod

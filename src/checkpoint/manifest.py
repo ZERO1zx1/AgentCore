@@ -3,7 +3,7 @@ Tracks task progress, units of work, inputs, outputs, validation status, and res
 """
 import os
 import json
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
 
@@ -54,28 +54,28 @@ class TaskManifest:
         self.task_context_dict: Dict[str, Any] = {}
         self.work_units_data: List[Dict[str, Any]] = []
         self.orchestration: Dict[str, Any] = {}
-        self.updated_at = datetime.now(UTC).isoformat()
+        self.updated_at = datetime.now(timezone.utc).isoformat()
         self.created_at = self.updated_at
 
     def update_progress(self, completed_units: int, total_units: int, current_unit: Optional[str] = None):
         self.progress["completed_units"] = completed_units
         self.progress["total_units"] = total_units
         self.progress["current_unit"] = current_unit
-        self.updated_at = datetime.now(UTC).isoformat()
+        self.updated_at = datetime.now(timezone.utc).isoformat()
 
     def add_completed_work(self, item: str):
         if item not in self.completed_work:
             self.completed_work.append(item)
-        self.updated_at = datetime.now(UTC).isoformat()
+        self.updated_at = datetime.now(timezone.utc).isoformat()
 
     def add_output(self, output_path: str):
         if output_path not in self.outputs:
             self.outputs.append(output_path)
-        self.updated_at = datetime.now(UTC).isoformat()
+        self.updated_at = datetime.now(timezone.utc).isoformat()
 
     def set_status(self, status: str):
         self.status = status
-        self.updated_at = datetime.now(UTC).isoformat()
+        self.updated_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -142,5 +142,5 @@ class TaskManifest:
         manifest.task_context_dict = data.get("task_context", {})
         manifest.work_units_data = data.get("work_units", [])
         manifest.orchestration = data.get("orchestration", {})
-        manifest.updated_at = data.get("updated_at", datetime.now(UTC).isoformat())
+        manifest.updated_at = data.get("updated_at", datetime.now(timezone.utc).isoformat())
         return manifest

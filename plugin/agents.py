@@ -104,8 +104,8 @@ Then delegate to the appropriate specialist skill.
 1. Classify intent: code, app/infra, data, document, media.
 2. Determine artifact types and required capabilities.
 3. Route to `code-engineer` and/or `credit-safe-agent` as appropriate.
-4. Use `adaptive-local-memory` when relevant prior work exists.
-5. Deliver a verified result with explicit evidence of validation.
+4. Recall a small number of relevant local lessons; treat them as fallible hints and let current workspace evidence win.
+5. Deliver a verified result with explicit evidence of validation. Record only verified, reusable lessons without secrets or personal data.
 """,
     "code-engineer": """---
 name: code-engineer
@@ -139,15 +139,6 @@ Budget-first autonomous execution.
 3. Checkpoint progress incrementally so work is resumable.
 4. On exhaustion, persist state and stop gracefully.
 """,
-    "adaptive-local-memory": """---
-name: adaptive-local-memory
-description: Bounded read-only runtime recall from adaptive local memory to avoid repeating completed work.
----
-
-# Adaptive Local Memory
-
-Use persisted local memory to recall prior task outcomes and avoid redoing completed work. Recall is read-only and bounded.
-""",
 }
 
 # Slash commands shipped by this plugin. name -> frontmatter + body.
@@ -158,7 +149,7 @@ name: agentcore
 description: Load AgentCore project context, show status, and identify relevant skills
 ---
 
-Load AGENTS.md for AgentCore instructions, then show repository state, current task/checkpoint, budget state, and the three-skill route.
+Load AGENTS.md for AgentCore instructions, then show repository state, current task/checkpoint, budget state, and the three-policy route.
 """,
     "adaptive-omni": """---
 name: adaptive-omni

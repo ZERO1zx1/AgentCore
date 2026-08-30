@@ -27,8 +27,11 @@ from src.ingestion.repository import RepositoryProcessor
 from src.core.notifications import GitManager, NotificationManager, create_budget_exhaustion_handler
 from src.core.orchestrator import AdaptiveOrchestrator
 from src.memory.store import LocalMemoryStore
+from src.memory.metrics import OutcomeMetrics
+from src.core.route_learning import CapabilityHealthRegistry
 import json
 import os
+import time
 
 
 class AgentCoreEngine:
@@ -49,7 +52,8 @@ class AgentCoreEngine:
         )
         self.executor = executor or FakeExecutor()
         self.model_registry = model_registry or ModelRegistry()
-        self.model_router = ModelRouter(self.model_registry)
+        self.route_health = CapabilityHealthRegistry(os.path.join(repo_root, ".agentcore", "route-health.json"))
+        self.model_router = ModelRouter(self.model_registry, self.route_health)
         self.artifact_manager = artifact_manager or ArtifactManager(
             base_dir=self.runtime_config.artifact_root,
             private_artifacts=self.runtime_config.private_artifacts,
@@ -61,6 +65,7 @@ class AgentCoreEngine:
         self.work_units: List[WorkUnit] = []
         self.usage_history: List[Dict[str, Any]] = []
         self.memory_store = LocalMemoryStore(repo_root)
+        self.outcome_metrics = OutcomeMetrics.load(os.path.join(repo_root, ".agentcore", "memory-metrics.json"))
         
         # Budget exhaustion handlers
         self.git_manager = GitManager(repo_root)
@@ -94,9 +99,20 @@ class AgentCoreEngine:
         context.user_prompt = task_input.prompt
         context.execution_mode = task_input.execution_mode.value
         context.requested_output_type = task_input.output_type
+        context.metadata.update(task_input.metadata)
         profile = AdaptiveOrchestrator.profile(task_input.prompt, context, task_input.requested_skill)
         context.orchestration = profile.to_dict()
-        context.memory_hits = self.memory_store.recall(profile.memory_query)
+        # Staleness is an auditable lifecycle update; it prevents changed source
+        # evidence from silently influencing a fresh plan.
+        self.memory_store.mark_stale_lessons(context.source_fingerprints, scope=profile.memory_scope)
+        context.memory_hits, memory_report = self.memory_store.recall_with_report(
+            profile.memory_query,
+            scope=profile.memory_scope,
+            source_fingerprints=context.source_fingerprints,
+        )
+        context.orchestration["memory_dry_run"] = memory_report.to_dict()
+        context.orchestration["memory_conflicts"] = list(memory_report.conflicts)
+        self.outcome_metrics.record_task(recalled=len(context.memory_hits))
 
         # Step 2: Create manifest
         manifest = TaskManifest(
@@ -190,6 +206,10 @@ class AgentCoreEngine:
             manifest.work_units_data = [u.to_dict() for u in self.work_units]
             manifest.orchestration = dict(self.current_context.orchestration)
             manifest.orchestration["memory_hit_ids"] = [item.get("id") for item in self.current_context.memory_hits]
+            manifest.orchestration["memory_metrics"] = self.outcome_metrics.summary()
+            manifest.orchestration["route_health"] = {
+                route_id: stats.to_dict() for route_id, stats in self.route_health.routes.items()
+            }
         # Persist usage history so resume restores it
         manifest.usage_history = list(self.usage_history)
 
@@ -423,7 +443,9 @@ class AgentCoreEngine:
             "execution_mode": self.current_manifest.execution_mode,
             "attachments": attachments,
         }
+        started = time.perf_counter()
         exec_result = self.executor.execute(unit.type, model.model_id, prompt, context=execution_context)
+        latency_ms = int((time.perf_counter() - started) * 1000)
 
         # Normalize usage
         usage = self._normalize_usage(exec_result.usage)
@@ -432,6 +454,14 @@ class AgentCoreEngine:
         actual_cost = exec_result.metadata.get("actual_cost")
         cost_source = "provider" if actual_cost is not None else "estimate"
         charged_cost = float(actual_cost) if actual_cost is not None else float(est_cost)
+        self.route_health.record(
+            model.model_id,
+            model.capabilities,
+            success=exec_result.success,
+            latency_ms=latency_ms,
+            cost=charged_cost,
+            cost_source="provider_confirmed" if actual_cost is not None else "estimated",
+        )
 
         # Record usage & cost
         self.usage_history.append({
@@ -447,6 +477,7 @@ class AgentCoreEngine:
             "total_tokens": usage.get("total_tokens", 0),
             "provider_request_id": exec_result.provider_request_id,
             "success": exec_result.success,
+            "latency_ms": latency_ms,
         })
         self.current_manifest.budget_info.update(self.budget_manager.record_usage_snapshot(charged_cost))
 

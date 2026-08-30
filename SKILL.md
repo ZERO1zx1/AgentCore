@@ -10,7 +10,7 @@ Use AgentCore to produce bounded, evidenced work. Inspect current artifacts firs
 - Preserve the default 15% reserve and checkpoint meaningful completed work.
 - Label costs as provider-confirmed, estimated, or unknown; never present fake-executor output as billing.
 - Validate the artifact in its real form and report completed, skipped, blocked, and unverified work separately.
-- Treat the three public policy roles as `adaptive-omni-agent`, `code-engineer`, and `credit-safe-agent`; `adaptive-local-memory` is internal, fallible recall.
+- Treat the three public policy roles as `adaptive-omni-agent`, `code-engineer`, and `credit-safe-agent`. `adaptive-omni-agent` includes internal, fallible local recall; current workspace evidence always wins.
 - Real provider work requires an `OperationExecutor`; AgentCore ships no provider SDK integration.
 
 See [README.md](README.md) for setup, [AGENTS.md](AGENTS.md) for repository conventions, and [references](references/) for the implementation-aligned policies.

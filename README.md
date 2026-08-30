@@ -43,7 +43,7 @@ TaskInput -> InputRouter -> TaskContext -> AdaptiveOrchestrator
                          BudgetManager
 ```
 
-The public operating policies are [adaptive-omni-agent](skills/adaptive-omni-agent/SKILL.md), [code-engineer](skills/code-engineer/SKILL.md), and [credit-safe-agent](skills/credit-safe-agent/SKILL.md). [adaptive-local-memory](skills/adaptive-local-memory/SKILL.md) is an internal evidence-recall subsystem.
+The public operating policies are [adaptive-omni-agent](skills/adaptive-omni-agent/SKILL.md), [code-engineer](skills/code-engineer/SKILL.md), and [credit-safe-agent](skills/credit-safe-agent/SKILL.md). Adaptive Omni Agent includes bounded, evidence-first local learning; its internal `src/memory` store supplies fallible lessons that never override current workspace evidence. It also provides admission quality gates, recall explanations, conflict handling, provenance/freshness, optional offline hybrid retrieval, route health learning, deterministic fallback, metrics, deduplication, integrity-checked knowledge packs, role permissions, poisoning checks, review cards, and reproducible runbooks.
 
 ## Modes and budget safety
 

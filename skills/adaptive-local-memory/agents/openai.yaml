@@ -1,4 +1,4 @@
 interface:
-  display_name: "Adaptive Local Memory"
-  short_description: "Learn from verified local task outcomes"
-  default_prompt: "Use $adaptive-local-memory to recall relevant lessons, complete this task, and save only verified new learning."
+  display_name: "Adaptive Local Memory (legacy alias)"
+  short_description: "Now included in Adaptive Omni Agent"
+  default_prompt: "Use $adaptive-omni-agent to recall relevant lessons, complete this task, and save only verified new learning."

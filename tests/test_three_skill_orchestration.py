@@ -21,6 +21,8 @@ class ThreeSkillOrchestrationTest(unittest.TestCase):
         context = TaskContext("t", "", "AUTO", "text", source_types={".": "repository"}, repository_context={"extensions": {".py": 2, ".png": 1}, "file_tree": ["app.py", "logo.png"]})
         profile = AdaptiveOrchestrator.profile("fix the app", context)
         self.assertEqual(profile.active_skills, ["adaptive-omni-agent", "code-engineer", "credit-safe-agent"])
+        self.assertEqual(profile.memory_policy, "evidence-first-bounded-local-lessons")
+        self.assertIn("memory_policy", profile.to_dict())
         self.assertIn("code", profile.artifact_types)
         self.assertIn("image", profile.artifact_types)
 
@@ -58,6 +60,7 @@ class ThreeSkillOrchestrationTest(unittest.TestCase):
             manifest = engine.initialize_task(TaskInput(prompt="fix python app bug", task_id="t", repository=str(repo), budget=10))
             self.assertEqual(manifest.orchestration["primary_skill"], "adaptive-omni-agent")
             self.assertEqual(manifest.orchestration["memory_hit_ids"], ["l-1"])
+            self.assertEqual(manifest.orchestration["memory_policy"], "evidence-first-bounded-local-lessons")
             self.assertIn("Primary skill: adaptive-omni-agent", engine._build_execution_prompt(engine.work_units[0]))
 
     def test_model_router_returns_capable_model(self):

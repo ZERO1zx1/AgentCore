@@ -5,7 +5,7 @@ import os
 import subprocess
 import json
 import shutil
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from decimal import Decimal
 
@@ -106,7 +106,7 @@ class GitManager:
     
     def _save_fallback(self, task_id: str, budget_state: str, budget_info: Dict[str, Any], commit_msg: str) -> str:
         """Save checkpoint data to fallback directory when git fails."""
-        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         fallback_file = os.path.join(self._fallback_dir, f"{task_id}_{budget_state}_{timestamp}.json")
         
         fallback_data = {
@@ -114,7 +114,7 @@ class GitManager:
             "budget_state": budget_state,
             "budget_info": budget_info,
             "commit_message": commit_msg,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "fallback_reason": "git_push_failed"
         }
         
@@ -136,7 +136,7 @@ class GitManager:
             result["error"] = "Not a git repository"
             result["steps"].append("git repo check: FAILED")
             # Save to fallback anyway
-            timestamp = datetime.now(UTC).isoformat()
+            timestamp = datetime.now(timezone.utc).isoformat()
             commit_msg = f"[AgentCore] Budget {budget_state} - Task: {task_id}"
             fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
             result["fallback_file"] = fallback_file
@@ -152,7 +152,7 @@ class GitManager:
             result["error"] = "Failed to stage changes"
             result["steps"].append("git add: FAILED")
             # Save to fallback
-            timestamp = datetime.now(UTC).isoformat()
+            timestamp = datetime.now(timezone.utc).isoformat()
             commit_msg = f"[AgentCore] Budget {budget_state} - Task: {task_id}"
             fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
             result["fallback_file"] = fallback_file
@@ -165,7 +165,7 @@ class GitManager:
             return result
         
         # Create commit message with budget info
-        timestamp = datetime.now(UTC).isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         commit_msg = (
             f"[AgentCore] Budget {budget_state} - Task: {task_id}\n\n"
             f"Budget: {budget_info.get('used', 0):.2f}/{budget_info.get('initial', 0):.2f} {budget_info.get('unit', 'USD')}\n"
@@ -260,7 +260,7 @@ class NotificationManager:
         # File log notification (always works as fallback)
         try:
             log_entry = {
-                "timestamp": datetime.now(UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "event": "budget_exhausted",
                 "task_id": task_id,
                 "budget_state": budget_state,
@@ -289,7 +289,7 @@ class NotificationManager:
                     "task_id": task_id,
                     "budget_state": budget_state,
                     "budget_info": budget_info,
-                    "timestamp": datetime.now(UTC).isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message": message
                 }).encode("utf-8")
                 

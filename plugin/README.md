@@ -56,7 +56,8 @@ Each agent gets these skills:
 - `adaptive-omni-agent`
 - `code-engineer`
 - `credit-safe-agent`
-- `adaptive-local-memory`
+
+`adaptive-omni-agent` includes bounded local-memory recall and verified lesson recording. It is not installed as a separate public skill.
 
 And these slash commands:
 

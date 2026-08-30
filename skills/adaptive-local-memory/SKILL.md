@@ -1,9 +1,11 @@
 ---
 name: adaptive-local-memory
-description: Maintain small, evidence-backed local lessons without replacing current workspace inspection.
+description: Legacy compatibility alias for Adaptive Omni Agent's evidence-first local-learning capability.
 ---
 
-# Adaptive Local Memory
+# Adaptive Local Memory (legacy alias)
+
+This behavior has been merged into [`adaptive-omni-agent`](../adaptive-omni-agent/SKILL.md). Do not route work here as a separate public skill. Use Adaptive Omni Agent for both orchestration and local learning.
 
 Current files, instructions, versions, and test evidence always outrank recalled lessons. Keep project memory at `<root>/.agent-memory/lessons.jsonl`; recall a small task-and-symptom query before work, and record only reusable outcomes with observable evidence.
 

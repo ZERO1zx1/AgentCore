@@ -42,3 +42,12 @@ node_modules/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+
+.agentcore-test-venv/
+.agentcore-test-venv314/
+
+.test-tmp/
+
+.test_private_artifacts/
+
+tmp/
