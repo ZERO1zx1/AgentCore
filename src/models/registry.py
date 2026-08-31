@@ -27,6 +27,13 @@ class ModelRegistry:
             "fake-strong": ModelSpec("fake", "fake-strong", "tier3", Decimal("0.005"), Decimal("0.015"), ["complex_debugging", "architecture", "coding", "text"], ["text"], ["text"]),
             "fake-vision": ModelSpec("fake", "fake-vision", "tier4", Decimal("0.01"), Decimal("0.03"), ["multimodal", "vision", "text"], ["text", "image"], ["text"]),
             "fake-omni": ModelSpec("fake", "fake-omni", "tier4", Decimal("0.012"), Decimal("0.035"), ["multimodal", "vision", "image", "audio", "video", "text"], ["text", "image", "audio", "video"], ["text"]),
+            # Real Provider Models (Production-ready)
+            "ollama/qwen2.5-coder": ModelSpec("ollama", "ollama/qwen2.5-coder", "tier0", Decimal("0"), Decimal("0"), ["coding", "standard_reasoning", "parsing", "text"], ["text"], ["text"], context_size=32768),
+            "gpt-4o-mini": ModelSpec("openai", "gpt-4o-mini", "tier1", Decimal("0.00015"), Decimal("0.0006"), ["summarization", "classification", "coding", "text"], ["text", "image"], ["text"], context_size=128000),
+            "gemini-1.5-flash": ModelSpec("gemini", "gemini-1.5-flash", "tier1", Decimal("0.000075"), Decimal("0.0003"), ["summarization", "classification", "multimodal", "vision", "audio", "video", "text"], ["text", "image", "audio", "video"], ["text"], context_size=1000000),
+            "claude-3-5-haiku": ModelSpec("anthropic", "claude-3-5-haiku-20241022", "tier1", Decimal("0.0008"), Decimal("0.004"), ["summarization", "coding", "standard_reasoning", "text"], ["text"], ["text"], context_size=200000),
+            "gpt-4o": ModelSpec("openai", "gpt-4o", "tier2", Decimal("0.0025"), Decimal("0.010"), ["coding", "standard_reasoning", "architecture", "multimodal", "vision", "text"], ["text", "image"], ["text"], context_size=128000),
+            "claude-3-5-sonnet": ModelSpec("anthropic", "claude-3-5-sonnet-20241022", "tier3", Decimal("0.003"), Decimal("0.015"), ["complex_debugging", "architecture", "coding", "multimodal", "vision", "text"], ["text", "image"], ["text"], context_size=200000),
         }
 
     def register_model(self, name: str, spec: ModelSpec):

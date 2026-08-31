@@ -27,6 +27,18 @@ python -c "from src.core.engine import AgentCoreEngine; print('OK')"
 
 Run the smallest relevant check first, then the suite for cross-cutting changes. Report PASS, pre-existing failures, and checks not run honestly. The focused proof-of-concept tests live under `feat/low-cost-skill/tests` and are separate from the engine.
 
+## Local dashboard visibility
+
+For a non-trivial task performed through the AgentCore skill in this workspace,
+the **agent**, not the human user, must create an `agentcore skill start`
+dashboard record before work begins, update it at a meaningful checkpoint, and
+finish or fail it at the end. Keep the returned task ID in the agent's working
+context; never ask the user to copy it, type a dashboard command, or perform
+status updates. Use only a short, non-sensitive Mongolian
+title/message/summary. This is a local progress display, not provider billing
+or a cloud connection. The exact agent-only commands are documented in
+`SKILL.md`.
+
 ## Navigation
 
 - [README](README.md): installation, architecture, and adapter boundary.
