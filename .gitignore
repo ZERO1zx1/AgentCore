@@ -51,3 +51,5 @@ node_modules/
 .test_private_artifacts/
 
 tmp/
+
+.githooks/
