@@ -32,34 +32,14 @@ jobs:
           # Probe child paths because these ignored directories do not exist in
           # the Python-only job. --no-index also checks rules for tracked files.
           git check-ignore --no-index -q credit_demo.db
-          git check-ignore --no-index -q examples/frontend/node_modules/.ignore-probe
-          git check-ignore --no-index -q examples/frontend/dist/.ignore-probe
           git check-ignore --no-index -q examples/backend/express/node_modules/.ignore-probe
           for lockfile in \
-            examples/frontend/package-lock.json \
             examples/backend/express/package-lock.json; do
             if git check-ignore --no-index -q "$lockfile"; then
               echo "$lockfile must remain trackable"
               exit 1
             fi
           done
-
-  frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: examples/frontend
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "20.17"
-      - name: Install dependencies (locked)
-        run: npm ci
-      - name: Jest tests
-        run: npm test -- --runInBand
-      - name: Production build
-        run: npm run build
 
   express-example:
     runs-on: ubuntu-latest
