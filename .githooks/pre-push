@@ -1,11 +1,19 @@
 #!/bin/sh
-# Auto-update the active AgentCore skill record before each push.
-# The active task ID is persisted by "python -m src.cli skill start".
+# Fully automatic AgentCore skill record:
+#   - auto-start (create) a record on the first push if none is active
+#   - auto-update the active record on every push
+# No manual `skill start` / `skill update` / `skill finish` needed.
 state=".agentcore/state/skill_active_task"
+
+if [ ! -f "$state" ]; then
+  python -m src.cli skill start --title "AgentCore ажил (auto)" >/dev/null 2>&1 || true
+fi
+
 if [ -f "$state" ]; then
   task_id="$(tr -d '[:space:]' < "$state")"
   if [ -n "$task_id" ]; then
     python -m src.cli skill update "$task_id" --message "git push (auto)" >/dev/null 2>&1 || true
   fi
 fi
+
 exit 0
