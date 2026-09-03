@@ -19,6 +19,9 @@ class TestCLI(unittest.TestCase):
             self.assertIn("AgentCore", mock_out.getvalue())
 
     def test_cli_list_command(self):
+        # Ensure the checkpoints directory exists so this test is deterministic
+        # regardless of prior state (a clean checkout has no .agentcore/checkpoints).
+        os.makedirs(".agentcore/checkpoints", exist_ok=True)
         with patch.object(sys, "argv", ["agentcore", "list"]), patch("sys.stdout", new_callable=StringIO) as mock_out:
             main()
             self.assertIn("Checkpoint", mock_out.getvalue())
@@ -56,12 +59,12 @@ class TestCLI(unittest.TestCase):
             sys.executable, "-c", "print('visible to dashboard')",
         ]), patch("sys.stdout", new_callable=StringIO) as mock_out:
             main()
-            self.assertIn("website дээр харагдаж эхэллээ", mock_out.getvalue())
+            self.assertIn("бүртгэгдлээ", mock_out.getvalue())
 
     def test_cli_skill_bridge_records_visible_lifecycle(self):
         task_id = "cli_skill_bridge_test_01"
         with patch.object(sys, "argv", [
-            "agentcore", "skill", "start", "--no-open-dashboard", "--task-id", task_id, "--title", "Skill dashboard test",
+            "agentcore", "skill", "start", "--task-id", task_id, "--title", "Skill dashboard test",
         ]), patch("sys.stdout", new_callable=StringIO) as mock_out:
             main()
             self.assertIn(f"TASK_ID={task_id}", mock_out.getvalue())
@@ -82,16 +85,6 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(manifest["status"], "COMPLETED")
         self.assertEqual(manifest["orchestration"]["source"], "agentcore_skill")
         self.assertEqual(manifest["work_units"][0]["status"], "completed")
-
-    def test_cli_skill_start_opens_dashboard_by_default(self):
-        with patch("src.cli.main._ensure_dashboard_is_open") as open_dashboard, patch.object(
-            sys, "argv", [
-                "agentcore", "skill", "start", "--task-id", "cli_skill_auto_open_test_01", "--title", "Auto open test",
-            ]
-        ), patch("sys.stdout", new_callable=StringIO):
-            main()
-        open_dashboard.assert_called_once()
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,5 @@
 """Command Line Interface (CLI) for AgentCore.
-Provides commands for running tasks, serving the Web Dashboard, and managing checkpoints.
+Provides commands for running tasks and managing checkpoints.
 """
 
 import sys
@@ -7,10 +7,6 @@ import argparse
 import os
 import json
 import subprocess
-import threading
-import time
-import urllib.request
-import webbrowser
 from pathlib import Path
 
 from src.core.engine import AgentCoreEngine
@@ -22,45 +18,6 @@ from src.checkpoint.manager import CheckpointManager
 from src.checkpoint.manifest import TaskManifest
 from src.observability.manifest_view import budget_view, manifest_prompt, manifest_timestamp
 from src.core.planner import WorkUnit
-
-
-DASHBOARD_URL = "http://127.0.0.1:8000"
-
-
-def _dashboard_is_available() -> bool:
-    """Return whether the local dashboard is already accepting requests."""
-    try:
-        with urllib.request.urlopen(f"{DASHBOARD_URL}/api/health", timeout=0.4) as response:
-            return 200 <= response.status < 300
-    except (OSError, ValueError):
-        return False
-
-
-def _open_dashboard_when_ready() -> None:
-    """Wait briefly for a local server, then open the normal browser once."""
-    def wait_and_open() -> None:
-        for _ in range(20):
-            if _dashboard_is_available():
-                webbrowser.open(DASHBOARD_URL, new=2)
-                return
-            time.sleep(0.2)
-        # Opening still gives the user a useful browser page if server startup
-        # failed; the URL stays local and has no external side effect.
-        webbrowser.open(DASHBOARD_URL, new=2)
-
-    threading.Thread(target=wait_and_open, daemon=True).start()
-
-
-def _ensure_dashboard_is_open() -> None:
-    """Start the local-only dashboard when needed and open it for the user."""
-    if not _dashboard_is_available():
-        creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
-        subprocess.Popen(
-            [sys.executable, "-m", "src.cli", "serve", "--no-browser"],
-            cwd=os.getcwd(),
-            creationflags=creation_flags,
-        )
-    _open_dashboard_when_ready()
 
 
 def main():
@@ -80,13 +37,6 @@ def main():
     run_parser.add_argument("--provider", default="fake", choices=["multi", "fake", "ollama"], help="Executor provider backend")
     run_parser.add_argument("--files", "-f", nargs="*", default=[], help="File paths for attachments or documents")
 
-    # Command: serve
-    serve_parser = subparsers.add_parser("serve", help="Launch AgentCore Web Dashboard")
-    serve_parser.add_argument("--host", default="127.0.0.1", help="Host address (default: 127.0.0.1)")
-    serve_parser.add_argument("--port", type=int, default=8000, help="Port number (default: 8000)")
-    serve_parser.add_argument("--reload", action="store_true", help="Auto-reload on changes")
-    serve_parser.add_argument("--no-browser", action="store_true", help="Do not open the local dashboard in a browser")
-
     # Command: list
     list_parser = subparsers.add_parser("list", help="List all saved task checkpoints")
 
@@ -101,24 +51,23 @@ def main():
     # Command: observe
     observe_parser = subparsers.add_parser(
         "observe",
-        help="Run a terminal command and show its progress in the local dashboard",
+        help="Run a terminal command and record its progress as a checkpoint",
     )
-    observe_parser.add_argument("--title", required=True, help="Short Mongolian description shown in the dashboard")
+    observe_parser.add_argument("--title", required=True, help="Short Mongolian description recorded for the task")
     observe_parser.add_argument("--repo", "-r", default=".", help="Working directory for the command")
     observe_parser.add_argument("terminal_command", nargs=argparse.REMAINDER, help="Command after --, for example: -- python -m pytest")
 
     # Command: skill
-    # This small bridge lets a Codex/AgentCore skill expose its own work in the
-    # local dashboard without requiring a provider API key or a cloud service.
+    # This small bridge lets a Codex/AgentCore skill record its own work as a
+    # checkpoint without requiring a provider API key or a cloud service.
     skill_parser = subparsers.add_parser(
         "skill",
-        help="Show AgentCore skill work in the local dashboard",
+        help="Record AgentCore skill work as a checkpoint",
     )
     skill_actions = skill_parser.add_subparsers(dest="skill_action", required=True)
-    skill_start = skill_actions.add_parser("start", help="Create a dashboard record for skill work")
-    skill_start.add_argument("--title", required=True, help="Short, non-sensitive description shown in the dashboard")
-    skill_start.add_argument("--task-id", default=None, help="Optional dashboard task ID")
-    skill_start.add_argument("--no-open-dashboard", action="store_true", help="Do not automatically start or open the local dashboard")
+    skill_start = skill_actions.add_parser("start", help="Create a checkpoint record for skill work")
+    skill_start.add_argument("--title", required=True, help="Short, non-sensitive description recorded for the task")
+    skill_start.add_argument("--task-id", default=None, help="Optional checkpoint task ID")
     skill_update = skill_actions.add_parser("update", help="Update the visible skill-work message")
     skill_update.add_argument("task_id", help="Task ID printed by skill start")
     skill_update.add_argument("--message", required=True, help="Short, non-sensitive progress message")
@@ -174,10 +123,8 @@ def main():
             }
             manifest.orchestration = {"source": "agentcore_skill", "control": "dashboard_bridge"}
             checkpoint_mgr.save_checkpoint(manifest)
-            if not args.no_open_dashboard:
-                _ensure_dashboard_is_open()
             print(f"TASK_ID={task_id}")
-            print("AgentCore skill-ийн ажил website дээр харагдаж эхэллээ.")
+            print("AgentCore skill-ийн ажил бүртгэгдлээ.")
 
         else:
             manifest = checkpoint_mgr.load_checkpoint(args.task_id)
@@ -185,7 +132,7 @@ def main():
                 print(f"Task '{args.task_id}' олдсонгүй.")
                 sys.exit(1)
             if manifest.orchestration.get("source") != "agentcore_skill":
-                print("Энэ task нь AgentCore skill dashboard record биш байна.")
+                print("Энэ task нь AgentCore skill record биш байна.")
                 sys.exit(1)
 
             units = [WorkUnit.from_dict(item) for item in manifest.work_units_data]
@@ -200,14 +147,14 @@ def main():
                 manifest.work_units_data = [unit.to_dict()]
                 manifest.progress = {"completed_units": 0, "total_units": 1, "current_unit": unit.id}
                 manifest.set_status("IN_PROGRESS")
-                print("Website дээрх ажлын мэдээлэл шинэчлэгдлээ.")
+                print("Ажлын мэдээлэл шинэчлэгдлээ.")
             elif args.skill_action == "finish":
                 unit.instruction = args.summary
                 unit.status = "completed"
                 manifest.work_units_data = [unit.to_dict()]
                 manifest.progress = {"completed_units": 1, "total_units": 1, "current_unit": unit.id}
                 manifest.set_status("COMPLETED")
-                print("AgentCore skill-ийн ажил website дээр дууссан гэж тэмдэглэгдлээ.")
+                print("AgentCore skill-ийн ажил дууссан гэж тэмдэглэгдлээ.")
             else:  # fail
                 unit.instruction = args.message
                 unit.status = "failed"
@@ -215,7 +162,7 @@ def main():
                 manifest.progress = {"completed_units": 0, "total_units": 1, "current_unit": unit.id}
                 manifest.errors.append(args.message)
                 manifest.set_status("FAILED")
-                print("AgentCore skill-ийн ажил website дээр алдаатай гэж тэмдэглэгдлээ.")
+                print("AgentCore skill-ийн ажил алдаатай гэж тэмдэглэгдлээ.")
 
             checkpoint_mgr.save_checkpoint(manifest)
 
@@ -262,7 +209,7 @@ def main():
         artifact_dir = Path(".agentcore") / "tasks" / task_id / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         log_path = artifact_dir / "terminal-output.txt"
-        print(f"AgentCore website дээр харагдаж эхэллээ: {args.title}")
+        print(f"AgentCore ажил бүртгэгдлээ: {args.title}")
         print(f"Task ID: {task_id}")
 
         try:
@@ -292,20 +239,12 @@ def main():
         manifest.outputs = [str(log_path.resolve())]
         if exit_code == 0:
             manifest.set_status("COMPLETED")
-            print("Ажил дууслаа. Үр дүнг website дээрээс нээж болно.")
+            print("Ажил дууслаа.")
         else:
             manifest.set_status("FAILED")
             manifest.errors.append(f"Terminal command exited with code {exit_code}.")
-            print(f"Ажил алдаатай дууслаа (code {exit_code}). Log website дээр хадгалагдсан.")
+            print(f"Ажил алдаатай дууслаа (code {exit_code}). Log хадгалагдсан.")
         checkpoint_mgr.save_checkpoint(manifest)
-
-    elif args.command == "serve":
-        import uvicorn
-        print(f"\n🚀 Starting AgentCore Web Dashboard at http://{args.host}:{args.port}")
-        print(f"📊 Control center, live DAG visualizer, and budget monitors are active.\n")
-        if not args.no_browser and args.host in {"127.0.0.1", "localhost"}:
-            _open_dashboard_when_ready()
-        uvicorn.run("src.server.app:app", host=args.host, port=args.port, reload=args.reload)
 
     elif args.command == "run":
         mode_map = {
