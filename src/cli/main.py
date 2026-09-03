@@ -20,6 +20,25 @@ from src.observability.manifest_view import budget_view, manifest_prompt, manife
 from src.core.planner import WorkUnit
 
 
+def _active_skill_task_path() -> Path:
+    """Path to the persisted active skill task ID (used by the git hook)."""
+    return Path(".agentcore") / "state" / "skill_active_task"
+
+
+def _set_active_skill_task(task_id: str) -> None:
+    """Persist the active skill task ID so git hooks can auto-update it."""
+    path = _active_skill_task_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(task_id, encoding="utf-8")
+
+
+def _clear_active_skill_task() -> None:
+    """Remove the persisted active skill task ID (task finished or failed)."""
+    path = _active_skill_task_path()
+    if path.exists():
+        path.unlink()
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="agentcore",
@@ -123,6 +142,7 @@ def main():
             }
             manifest.orchestration = {"source": "agentcore_skill", "control": "dashboard_bridge"}
             checkpoint_mgr.save_checkpoint(manifest)
+            _set_active_skill_task(task_id)
             print(f"TASK_ID={task_id}")
             print("AgentCore skill-ийн ажил бүртгэгдлээ.")
 
@@ -165,6 +185,8 @@ def main():
                 print("AgentCore skill-ийн ажил алдаатай гэж тэмдэглэгдлээ.")
 
             checkpoint_mgr.save_checkpoint(manifest)
+            if args.skill_action in ("finish", "fail"):
+                _clear_active_skill_task()
 
     elif args.command == "observe":
         command = list(args.terminal_command)
