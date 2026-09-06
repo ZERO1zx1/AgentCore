@@ -33,7 +33,8 @@ class MultiProviderExecutor(OperationExecutor):
         custom_headers: Optional[Dict[str, str]] = None,
         timeout_seconds: float = 60.0,
     ):
-        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+        # An explicit empty string is intentional and must disable the env fallback.
+        self.openai_api_key = os.getenv("OPENAI_API_KEY") if openai_api_key is None else openai_api_key
         self.anthropic_api_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY")
         self.ollama_base_url = (ollama_base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
