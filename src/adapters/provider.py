@@ -27,16 +27,18 @@ class MultiProviderExecutor(OperationExecutor):
     def __init__(
         self,
         openai_api_key: Optional[str] = None,
+        openai_base_url: Optional[str] = None,
         anthropic_api_key: Optional[str] = None,
         gemini_api_key: Optional[str] = None,
         ollama_base_url: Optional[str] = None,
         custom_headers: Optional[Dict[str, str]] = None,
         timeout_seconds: float = 60.0,
     ):
-        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
-        self.anthropic_api_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY")
-        self.ollama_base_url = (ollama_base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
+        self.openai_api_key = os.getenv("OPENAI_API_KEY") if openai_api_key is None else openai_api_key
+        self.openai_base_url = (openai_base_url if openai_base_url is not None else os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY") if anthropic_api_key is None else anthropic_api_key
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY") if gemini_api_key is None else gemini_api_key
+        self.ollama_base_url = (ollama_base_url if ollama_base_url is not None else os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
         self.custom_headers = custom_headers or {}
         self.timeout_seconds = timeout_seconds
 
@@ -139,14 +141,14 @@ class MultiProviderExecutor(OperationExecutor):
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY is not configured.")
 
-        endpoint = "https://api.openai.com/v1/chat/completions"
+        endpoint = f"{self.openai_base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.openai_api_key}",
             "Content-Type": "application/json",
             **self.custom_headers,
         }
 
-        messages = [{"role": "user", "content": prompt}]
+        messages = self._build_messages(prompt, context)
 
         payload = {
             "model": model_id,
@@ -220,6 +222,18 @@ class MultiProviderExecutor(OperationExecutor):
             model_id=model_id,
             provider_request_id=data.get("id", ""),
         )
+
+    @staticmethod
+    def _build_messages(prompt: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Preserve verified attachment metadata without embedding binary files."""
+        messages: List[Dict[str, Any]] = [{"role": "user", "content": prompt}]
+        attachments = context.get("attachments", [])
+        if attachments:
+            messages.append({
+                "role": "user",
+                "content": "Verified attachments available to the adapter: " + json.dumps(attachments, default=str),
+            })
+        return messages
 
     def _execute_gemini(self, model_id: str, prompt: str, context: Dict[str, Any]) -> ExecutionResult:
         """Executes a Google Gemini model via REST API."""

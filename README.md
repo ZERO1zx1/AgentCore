@@ -18,6 +18,47 @@ python -m pytest tests -v
 
 `pypdf` is the runtime PDF dependency. If unavailable, a PDF task is persisted as `BLOCKED` with `DEPENDENCY_UNAVAILABLE`; AgentCore does not return placeholder extraction.
 
+### Real provider execution
+
+The repository includes `MultiProviderExecutor`, a concrete `OperationExecutor` adapter for OpenAI-compatible APIs, Anthropic, Gemini, Ollama, and deterministic fake models. Configure credentials through environment variables; never commit them:
+
+```bash
+cp .env.example .env
+export OPENAI_API_KEY="..."
+python -m src.cli run --prompt "Analyze this repository" --provider multi
+```
+
+Supported variables are `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, and `OLLAMA_BASE_URL`. `OPENAI_BASE_URL` also makes local OpenAI-compatible gateways usable. The adapter returns the canonical `ExecutionResult` contract, records provider request IDs and token usage, and returns a safe failed result when credentials or an HTTP request are unavailable.
+
+`ModelRegistry` contains demo and common production model specifications. Prices are estimates used for routing and budget admission, not provider billing. Inject a custom registry for current provider pricing:
+
+```python
+from decimal import Decimal
+from src.models.registry import ModelRegistry, ModelSpec
+
+registry = ModelRegistry()
+registry.register_model("my-model", ModelSpec(
+    provider="openai", model_id="my-model", tier="tier2",
+    input_price=Decimal("0.001"), output_price=Decimal("0.004"),
+    capabilities=["text", "coding"],
+))
+```
+
+### HTTP API
+
+An optional FastAPI interface is included for applications that need an API rather than a Python import:
+
+```bash
+python -m src.cli api --host 127.0.0.1 --port 8000
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/models
+curl -X POST http://127.0.0.1:8000/run \\
+  -H 'content-type: application/json' \\
+  -d '{"prompt":"Summarize this project","budget":1.0,"mode":"CREDIT_SAFE"}'
+```
+
+The API persists the same checkpoints and artifacts as the library. Available endpoints are `GET /health`, `GET /models`, `POST /run`, and `GET /tasks/{task_id}`. For production deployment, place it behind authentication, TLS, rate limiting, and a job queue; this repository intentionally does not invent application-specific identity or billing policy.
+
 ```python
 from src.core.engine import AgentCoreEngine
 from src.core.executor import FakeExecutor

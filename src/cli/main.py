@@ -67,6 +67,11 @@ def main():
     # Command: mcp
     mcp_parser = subparsers.add_parser("mcp", help="Run Model Context Protocol (MCP) Server over stdio")
 
+    # Command: api
+    api_parser = subparsers.add_parser("api", help="Run the AgentCore HTTP API")
+    api_parser.add_argument("--host", default="127.0.0.1")
+    api_parser.add_argument("--port", type=int, default=8000)
+
     # Command: observe
     observe_parser = subparsers.add_parser(
         "observe",
@@ -106,6 +111,10 @@ def main():
     if args.command == "mcp":
         from src.mcp.server import run_stdio_server
         run_stdio_server()
+
+    elif args.command == "api":
+        import uvicorn
+        uvicorn.run("src.api.app:app", host=args.host, port=args.port)
 
     elif args.command == "skill":
         checkpoint_mgr = CheckpointManager(".agentcore/checkpoints")
