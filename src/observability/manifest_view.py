@@ -1,7 +1,7 @@
 """Canonical, read-only projections of a TaskManifest.
 
-Keeping these projections in one place prevents the CLI, MCP bridge, and web
-dashboard from inventing incompatible names for the same manifest fields.
+Keeping these projections in one place prevents the CLI and MCP bridge from
+inventing incompatible names for the same manifest fields.
 """
 
 from __future__ import annotations

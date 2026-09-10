@@ -1,4 +1,4 @@
-"""Shared read models for CLI, MCP, and the local dashboard."""
+"""Shared read models for CLI and MCP consumers."""
 
 from src.observability.manifest_view import (
     budget_view,

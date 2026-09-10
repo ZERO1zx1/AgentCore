@@ -29,7 +29,8 @@ class ThreeSkillOrchestrationTest(unittest.TestCase):
     def test_code_engineer_still_uses_credit_controller(self):
         context = TaskContext("t", "", "AUTO", "text")
         profile = AdaptiveOrchestrator.profile("repair this", context, "code-engineer")
-        self.assertEqual(profile.active_skills, ["code-engineer", "credit-safe-agent"])
+        self.assertEqual(profile.primary_skill, "code-engineer")
+        self.assertEqual(profile.active_skills, ["adaptive-omni-agent", "code-engineer", "credit-safe-agent"])
 
     def test_asset_input_builds_multimodal_plan(self):
         with tempfile.TemporaryDirectory() as folder:

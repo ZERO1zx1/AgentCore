@@ -61,30 +61,5 @@ class TestCLI(unittest.TestCase):
             main()
             self.assertIn("бүртгэгдлээ", mock_out.getvalue())
 
-    def test_cli_skill_bridge_records_visible_lifecycle(self):
-        task_id = "cli_skill_bridge_test_01"
-        with patch.object(sys, "argv", [
-            "agentcore", "skill", "start", "--task-id", task_id, "--title", "Skill dashboard test",
-        ]), patch("sys.stdout", new_callable=StringIO) as mock_out:
-            main()
-            self.assertIn(f"TASK_ID={task_id}", mock_out.getvalue())
-
-        with patch.object(sys, "argv", [
-            "agentcore", "skill", "update", task_id, "--message", "Шалгаж байна",
-        ]):
-            main()
-
-        with patch.object(sys, "argv", [
-            "agentcore", "skill", "finish", task_id, "--summary", "Баталгаажсан",
-        ]):
-            main()
-
-        manifest_path = os.path.join(".agentcore", "checkpoints", f"{task_id}_manifest.json")
-        with open(manifest_path, encoding="utf-8") as manifest_file:
-            manifest = json.load(manifest_file)
-        self.assertEqual(manifest["status"], "COMPLETED")
-        self.assertEqual(manifest["orchestration"]["source"], "agentcore_skill")
-        self.assertEqual(manifest["work_units"][0]["status"], "completed")
-
 if __name__ == "__main__":
     unittest.main()

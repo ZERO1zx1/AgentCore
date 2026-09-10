@@ -13,30 +13,10 @@ from src.core.engine import AgentCoreEngine
 from src.core.task import TaskInput
 from src.core.modes import ExecutionMode
 from src.core.executor import FakeExecutor
-from src.adapters.provider import MultiProviderExecutor
 from src.checkpoint.manager import CheckpointManager
 from src.checkpoint.manifest import TaskManifest
 from src.observability.manifest_view import budget_view, manifest_prompt, manifest_timestamp
 from src.core.planner import WorkUnit
-
-
-def _active_skill_task_path() -> Path:
-    """Path to the persisted active skill task ID (used by the git hook)."""
-    return Path(".agentcore") / "state" / "skill_active_task"
-
-
-def _set_active_skill_task(task_id: str) -> None:
-    """Persist the active skill task ID so git hooks can auto-update it."""
-    path = _active_skill_task_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(task_id, encoding="utf-8")
-
-
-def _clear_active_skill_task() -> None:
-    """Remove the persisted active skill task ID (task finished or failed)."""
-    path = _active_skill_task_path()
-    if path.exists():
-        path.unlink()
 
 
 def main():
@@ -76,27 +56,6 @@ def main():
     observe_parser.add_argument("--repo", "-r", default=".", help="Working directory for the command")
     observe_parser.add_argument("terminal_command", nargs=argparse.REMAINDER, help="Command after --, for example: -- python -m pytest")
 
-    # Command: skill
-    # This small bridge lets a Codex/AgentCore skill record its own work as a
-    # checkpoint without requiring a provider API key or a cloud service.
-    skill_parser = subparsers.add_parser(
-        "skill",
-        help="Record AgentCore skill work as a checkpoint",
-    )
-    skill_actions = skill_parser.add_subparsers(dest="skill_action", required=True)
-    skill_start = skill_actions.add_parser("start", help="Create a checkpoint record for skill work")
-    skill_start.add_argument("--title", required=True, help="Short, non-sensitive description recorded for the task")
-    skill_start.add_argument("--task-id", default=None, help="Optional checkpoint task ID")
-    skill_update = skill_actions.add_parser("update", help="Update the visible skill-work message")
-    skill_update.add_argument("task_id", help="Task ID printed by skill start")
-    skill_update.add_argument("--message", required=True, help="Short, non-sensitive progress message")
-    skill_finish = skill_actions.add_parser("finish", help="Mark visible skill work complete")
-    skill_finish.add_argument("task_id", help="Task ID printed by skill start")
-    skill_finish.add_argument("--summary", required=True, help="Short, non-sensitive completion summary")
-    skill_fail = skill_actions.add_parser("fail", help="Mark visible skill work as blocked or failed")
-    skill_fail.add_argument("task_id", help="Task ID printed by skill start")
-    skill_fail.add_argument("--message", required=True, help="Short, non-sensitive failure message")
-
     args = parser.parse_args()
 
     if not args.command:
@@ -106,87 +65,6 @@ def main():
     if args.command == "mcp":
         from src.mcp.server import run_stdio_server
         run_stdio_server()
-
-    elif args.command == "skill":
-        checkpoint_mgr = CheckpointManager(".agentcore/checkpoints")
-
-        if args.skill_action == "start":
-            task_id = args.task_id or f"skill_{os.urandom(4).hex()}"
-            manifest = TaskManifest(
-                task_id=task_id,
-                input_type="agentcore_skill",
-                sources=[],
-                initial_budget=0,
-                budget_unit="LOCAL",
-                execution_mode="OBSERVE_ONLY",
-            )
-            unit = WorkUnit(
-                id="agentcore_skill_work",
-                type="analyze",
-                priority="P0",
-                instruction=args.title,
-                required_capabilities=[],
-                status="in_progress",
-            )
-            manifest.work_units_data = [unit.to_dict()]
-            manifest.progress = {"completed_units": 0, "total_units": 1, "current_unit": unit.id}
-            manifest.task_context_dict = {
-                "task_id": task_id,
-                "user_prompt": args.title,
-                "execution_mode": "OBSERVE_ONLY",
-                "requested_output_type": "skill_work",
-                "input_sources": [],
-                "metadata": {},
-                "orchestration": {"source": "agentcore_skill", "control": "dashboard_bridge"},
-                "memory_hits": [],
-            }
-            manifest.orchestration = {"source": "agentcore_skill", "control": "dashboard_bridge"}
-            checkpoint_mgr.save_checkpoint(manifest)
-            _set_active_skill_task(task_id)
-            print(f"TASK_ID={task_id}")
-            print("AgentCore skill-ийн ажил бүртгэгдлээ.")
-
-        else:
-            manifest = checkpoint_mgr.load_checkpoint(args.task_id)
-            if not manifest:
-                print(f"Task '{args.task_id}' олдсонгүй.")
-                sys.exit(1)
-            if manifest.orchestration.get("source") != "agentcore_skill":
-                print("Энэ task нь AgentCore skill record биш байна.")
-                sys.exit(1)
-
-            units = [WorkUnit.from_dict(item) for item in manifest.work_units_data]
-            if not units:
-                print("Skill task-ийн ажиллах нэгж олдсонгүй.")
-                sys.exit(1)
-            unit = units[0]
-
-            if args.skill_action == "update":
-                unit.instruction = args.message
-                unit.status = "in_progress"
-                manifest.work_units_data = [unit.to_dict()]
-                manifest.progress = {"completed_units": 0, "total_units": 1, "current_unit": unit.id}
-                manifest.set_status("IN_PROGRESS")
-                print("Ажлын мэдээлэл шинэчлэгдлээ.")
-            elif args.skill_action == "finish":
-                unit.instruction = args.summary
-                unit.status = "completed"
-                manifest.work_units_data = [unit.to_dict()]
-                manifest.progress = {"completed_units": 1, "total_units": 1, "current_unit": unit.id}
-                manifest.set_status("COMPLETED")
-                print("AgentCore skill-ийн ажил дууссан гэж тэмдэглэгдлээ.")
-            else:  # fail
-                unit.instruction = args.message
-                unit.status = "failed"
-                manifest.work_units_data = [unit.to_dict()]
-                manifest.progress = {"completed_units": 0, "total_units": 1, "current_unit": unit.id}
-                manifest.errors.append(args.message)
-                manifest.set_status("FAILED")
-                print("AgentCore skill-ийн ажил алдаатай гэж тэмдэглэгдлээ.")
-
-            checkpoint_mgr.save_checkpoint(manifest)
-            if args.skill_action in ("finish", "fail"):
-                _clear_active_skill_task()
 
     elif args.command == "observe":
         command = list(args.terminal_command)
@@ -269,6 +147,9 @@ def main():
         checkpoint_mgr.save_checkpoint(manifest)
 
     elif args.command == "run":
+        # Provider adapters are optional for local/offline commands. Import the
+        # HTTP-backed adapter only when a provider-backed execution is requested,
+        # so local commands can run in a minimal runtime.
         mode_map = {
             "AUTO": ExecutionMode.AUTO,
             "FULL": ExecutionMode.FULL,
@@ -279,6 +160,8 @@ def main():
         if args.provider == "fake":
             executor = FakeExecutor()
         else:
+            from src.adapters.provider import MultiProviderExecutor
+
             executor = MultiProviderExecutor()
 
         engine = AgentCoreEngine(executor=executor, repo_root=args.repo)
@@ -343,7 +226,12 @@ def main():
             print(f"❌ Error: Checkpoint for task '{args.task_id}' not found.")
             sys.exit(1)
 
-        executor = FakeExecutor() if args.provider == "fake" else MultiProviderExecutor()
+        if args.provider == "fake":
+            executor = FakeExecutor()
+        else:
+            from src.adapters.provider import MultiProviderExecutor
+
+            executor = MultiProviderExecutor()
         engine = AgentCoreEngine(executor=executor)
 
         task_input = TaskInput(

@@ -11,6 +11,7 @@ env/
 *.log
 temporary test PDFs/
 runtime artifacts/
+output/
 secrets/
 API keys/
 opencode

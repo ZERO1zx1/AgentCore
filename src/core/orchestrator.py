@@ -87,12 +87,10 @@ class AdaptiveOrchestrator:
         lower = prompt.lower()
         if any(word in lower for word in ("analyze", "explain", "summar", "review", "translate")):
             capabilities.add("text")
-        if primary == SKILL_CREDIT:
-            active = [SKILL_CREDIT]
-        elif primary == SKILL_ENGINEER:
-            active = [SKILL_ENGINEER, SKILL_CREDIT]
-        else:
-            active = [SKILL_ADAPTIVE, SKILL_ENGINEER, SKILL_CREDIT]
+        # AgentCore always coordinates the three public policy roles. The
+        # requested skill selects the primary role; it does not bypass route
+        # selection, implementation ownership, or budget/checkpoint safety.
+        active = [SKILL_ADAPTIVE, SKILL_ENGINEER, SKILL_CREDIT]
 
         objective = " ".join(prompt.split()).strip() or "Inspect the supplied workspace and identify a bounded useful outcome"
         query_terms = [objective] + sorted(artifacts) + sorted(capabilities)
