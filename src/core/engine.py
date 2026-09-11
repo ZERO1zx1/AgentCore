@@ -564,10 +564,16 @@ class AgentCoreEngine:
         }
 
     def _is_safe_target(self, target_path: str) -> bool:
-        """Prevent path traversal and absolute escapes."""
+        """Prevent path traversal and absolute escapes.
+
+        Normalise the separator first so forward-slash paths are judged with
+        the same rules as the native separator (on Windows ``os.sep`` is ``\\``
+        but ``/`` is also accepted, which previously bypassed the ``..`` check).
+        """
         if os.path.isabs(target_path):
             return False
-        if ".." in target_path.split(os.sep):
+        normalized = target_path.replace("/", os.sep)
+        if ".." in normalized.split(os.sep):
             return False
         return True
 

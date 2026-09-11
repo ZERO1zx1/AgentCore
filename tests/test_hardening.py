@@ -76,5 +76,27 @@ class HardeningTest(unittest.TestCase):
         result = FakeExecutor().execute("test", "fake-local", "prompt")
         self.assertEqual(result.usage, {"input_tokens":100, "output_tokens":50, "total_tokens":150})
 
+    def test_checkpoint_task_id_is_sanitized_against_traversal(self):
+        """A user-supplied task_id must not escape the checkpoint directory."""
+        with tempfile.TemporaryDirectory() as folder:
+            manager = CheckpointManager(folder)
+            manager.save_checkpoint(TaskManifest("../../escape", "text", []))
+            # Only the sanitized manifest is created inside the checkpoint dir.
+            files = [name for name in os.listdir(folder) if name.endswith("_manifest.json")]
+            self.assertEqual(files, ["escape_manifest.json"])
+            self.assertTrue(Path(folder, "escape_manifest.json").exists())
+
+    def test_forward_slash_target_traversal_is_rejected(self):
+        """Traversal via forward slashes must be blocked on every platform."""
+        engine = AgentCoreEngine()
+        self.assertFalse(engine._is_safe_target("sub/../evil.txt"))
+        self.assertFalse(engine._is_safe_target("sub/../../evil.txt"))
+        self.assertFalse(engine._is_safe_target("a/b/../../../evil.txt"))
+        # Benign relative paths remain allowed.
+        self.assertTrue(engine._is_safe_target("result.md"))
+        self.assertTrue(engine._is_safe_target("nested/result.md"))
+        # Absolute paths remain rejected.
+        self.assertFalse(engine._is_safe_target(os.path.abspath("result.md")))
+
 
 if __name__ == "__main__": unittest.main()

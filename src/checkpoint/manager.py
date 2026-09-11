@@ -22,7 +22,10 @@ class CheckpointManager:
                 self.private_task_root, sanitize_filename(task_id), "checkpoints",
                 f"{sanitize_filename(task_id)}_manifest.json",
             )
-        return os.path.join(self.checkpoint_dir, f"{task_id}_manifest.json")
+        # Standard layout must also sanitize task_id so a user-supplied value
+        # cannot traverse out of the checkpoint directory (e.g. "../../evil").
+        safe_id = sanitize_filename(task_id)
+        return os.path.join(self.checkpoint_dir, f"{safe_id}_manifest.json")
 
     def save_checkpoint(self, manifest: TaskManifest) -> str:
         path = self.get_manifest_path(manifest.task_id)
