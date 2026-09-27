@@ -1,10 +1,14 @@
 ---
 name: credit-safe-agent
-description: Execute useful, resumable work under uncertain or explicit cost limits while preserving an emergency reserve.
+description: Plan and execute resumable work under budgets or uncertain costs while preserving reserves and preventing wasteful retries.
 ---
 
 # Credit-Safe Agent
 
-Preserve a configurable 15% reserve by default. Plan dependency-aware P0–P4 units; use deterministic local paths first, then the least costly capable route. Re-evaluate after every paid operation and checkpoint each completed atomic unit. Do not repeat an identical paid failure without a changed hypothesis.
+Make progress with the least expensive capable route. Prefer deterministic local work and existing artifacts; use paid or external operations only when they are necessary for the requested outcome. Preserve the configured 15% reserve by default.
 
-Record cost as provider-confirmed, estimated, or unknown. Never treat estimates as billing, spend the reserve on exploration/polish, or use remaining budget as authorization for external mutations. At emergency/exhausted state, stop new paid work, persist usable state, and report precise resume requirements. See [budget control](references/budget-control.md).
+Split work into dependency-aware atomic units and rank them by required outcome, not polish. Before an operation, confirm capability, estimate worst-case cost including plausible retries, and verify that the reserve remains intact. After each paid operation, record the result and re-evaluate the remaining plan. Checkpoint every completed unit so interruption does not force repetition.
+
+Track `estimated_cost`, `charged_cost`, `actual_cost`, and `cost_source` separately using decimal-safe values. Estimates are not billing. Retry only for a transient failure or a materially changed hypothesis; otherwise preserve the failure and next action. Never treat available budget as authorization for external mutations.
+
+When the reserve would be breached, cost is unknown, or budget is exhausted, stop new paid work, persist usable state, and report the exact resume condition. On resume, verify input fingerprints and artifact existence; invalidate only changed inputs and dependent units, preserving independent completed work and usage history. See [budget control](references/budget-control.md).
