@@ -51,13 +51,12 @@ python plugin/scanner.py skills/ -f json -o scan-report.json --ci
 | Windsurf  | `.windsurf/skills`        | `.windsurf/commands`     |
 | Gemini    | `.gemini/skills`          | `.gemini/commands`       |
 
-Each agent gets these skills:
+Each agent gets these public skills:
 
-- `adaptive-omni-agent`
 - `code-engineer`
 - `credit-safe-agent`
 
-`adaptive-omni-agent` includes bounded local-memory recall and verified lesson recording. It is not installed as a separate public skill.
+The runtime keeps adaptive routing and memory handling internal to the engine; these are not installed as separate public skills.
 
 And these slash commands:
 

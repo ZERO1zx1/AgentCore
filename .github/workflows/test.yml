@@ -24,8 +24,6 @@ jobs:
         run: python -m pytest tests/test_usage_proxy.py -v
       - name: Plugin tests (ResourceWarning is an error)
         run: python -W error::ResourceWarning -m pytest plugin/ -v
-      - name: Adaptive-local-memory tests
-        run: python -m unittest skills/adaptive-local-memory/scripts/test_memory.py -v
       - name: Repository ignore policy
         shell: bash
         run: |
