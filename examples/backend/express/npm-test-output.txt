@@ -1,0 +1,7 @@
+npm notice run agentcore-express-example@0.1.0 test
+npm notice run node --test usage_proxy.test.js
+✔ migration adds missing columns and preserves rows, idempotent (59.099ms)
+✔ applyCharge deducts, rejects when over budget, never negative (53.7909ms)
+✔ concurrent deductions cannot both spend the same balance (48.9287ms)
+✔ a failed transaction cannot roll back the next queued charge (50.2047ms)
+✖ GET /balance is read-only (no provider call) (100.7233ms)
