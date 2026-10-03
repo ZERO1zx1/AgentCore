@@ -83,6 +83,33 @@ class TestMultiProviderExecutor(unittest.TestCase):
         self.assertEqual(result.usage["total_tokens"], 200)
         self.assertEqual(result.provider_request_id, "chatcmpl-test1234")
 
+    @patch("httpx.Client")
+    def test_gemini_key_is_sent_in_header_not_url(self, mock_client_cls):
+        response = MagicMock()
+        response.json.return_value = {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+        response.raise_for_status = MagicMock()
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.post.return_value = response
+        mock_client_cls.return_value = client
+
+        result = self.executor.execute("text", "gemini-1.5-flash", "hello")
+        self.assertTrue(result.success)
+        endpoint, kwargs = client.post.call_args
+        self.assertNotIn("test-gemini-key", endpoint)
+        self.assertEqual(kwargs["headers"]["x-goog-api-key"], "test-gemini-key")
+
+    @patch("httpx.Client")
+    def test_network_failures_are_classified(self, mock_client_cls):
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.post.side_effect = __import__("httpx").ConnectError("offline")
+        mock_client_cls.return_value = client
+
+        result = self.executor.execute("text", "gpt-4o", "hello")
+        self.assertFalse(result.success)
+        self.assertEqual(result.metadata["error_type"], "network")
+
 
 if __name__ == "__main__":
     unittest.main()

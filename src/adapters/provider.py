@@ -14,6 +14,14 @@ from src.core.executor import OperationExecutor
 from src.core.execution_result import ExecutionResult
 
 
+class ProviderConfigurationError(ValueError):
+    """The provider cannot run because local configuration is invalid."""
+
+
+class ProviderNetworkError(RuntimeError):
+    """A provider request failed before a usable response was received."""
+
+
 class MultiProviderExecutor(OperationExecutor):
     """Unified provider-backed executor supporting multiple LLM backends.
 
@@ -73,16 +81,29 @@ class MultiProviderExecutor(OperationExecutor):
             result.metadata["latency_ms"] = latency_ms
             return result
 
+        except httpx.TimeoutException as exc:
+            return self._error_result(provider, model_id, start_time, "timeout", exc)
+        except httpx.HTTPStatusError as exc:
+            return self._error_result(provider, model_id, start_time, "http_status", exc)
+        except httpx.RequestError as exc:
+            return self._error_result(provider, model_id, start_time, "network", exc)
+        except ProviderConfigurationError as exc:
+            return self._error_result(provider, model_id, start_time, "configuration", exc)
+        except (ValueError, KeyError, TypeError) as exc:
+            return self._error_result(provider, model_id, start_time, "response", exc)
         except Exception as exc:
-            latency_ms = int((time.perf_counter() - start_time) * 1000)
-            return ExecutionResult(
-                success=False,
-                error=f"{provider.upper()} execution error: {str(exc)}",
-                provider=provider,
-                model_id=model_id,
-                metadata={"latency_ms": latency_ms},
-                usage={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
-            )
+            return self._error_result(provider, model_id, start_time, "unexpected", exc)
+
+    def _error_result(self, provider: str, model_id: str, start_time: float, error_type: str, exc: Exception) -> ExecutionResult:
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
+        return ExecutionResult(
+            success=False,
+            error=f"{provider.upper()} {error_type} error: {str(exc)}",
+            provider=provider,
+            model_id=model_id,
+            metadata={"latency_ms": latency_ms, "error_type": error_type},
+            usage={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        )
 
     def _infer_provider(self, model_id: str) -> str:
         """Infers provider name from model_id prefix or known naming patterns."""
@@ -138,7 +159,7 @@ class MultiProviderExecutor(OperationExecutor):
     def _execute_openai(self, model_id: str, prompt: str, context: Dict[str, Any]) -> ExecutionResult:
         """Executes an OpenAI model via REST API."""
         if not self.openai_api_key:
-            raise ValueError("OPENAI_API_KEY is not configured.")
+            raise ProviderConfigurationError("OPENAI_API_KEY is not configured.")
 
         endpoint = "https://api.openai.com/v1/chat/completions"
         headers = {
@@ -182,7 +203,7 @@ class MultiProviderExecutor(OperationExecutor):
     def _execute_anthropic(self, model_id: str, prompt: str, context: Dict[str, Any]) -> ExecutionResult:
         """Executes an Anthropic Claude model via Messages API."""
         if not self.anthropic_api_key:
-            raise ValueError("ANTHROPIC_API_KEY is not configured.")
+            raise ProviderConfigurationError("ANTHROPIC_API_KEY is not configured.")
 
         endpoint = "https://api.anthropic.com/v1/messages"
         headers = {
@@ -225,11 +246,11 @@ class MultiProviderExecutor(OperationExecutor):
     def _execute_gemini(self, model_id: str, prompt: str, context: Dict[str, Any]) -> ExecutionResult:
         """Executes a Google Gemini model via REST API."""
         if not self.gemini_api_key:
-            raise ValueError("GEMINI_API_KEY is not configured.")
+            raise ProviderConfigurationError("GEMINI_API_KEY is not configured.")
 
         clean_model = model_id.replace("models/", "")
-        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={self.gemini_api_key}"
-        headers = {"Content-Type": "application/json", **self.custom_headers}
+        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent"
+        headers = {"Content-Type": "application/json", "x-goog-api-key": self.gemini_api_key, **self.custom_headers}
 
         payload = {
             "contents": [{"parts": [{"text": prompt}]}]

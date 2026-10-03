@@ -56,6 +56,11 @@ def main():
     observe_parser.add_argument("--repo", "-r", default=".", help="Working directory for the command")
     observe_parser.add_argument("terminal_command", nargs=argparse.REMAINDER, help="Command after --, for example: -- python -m pytest")
 
+    scan_parser = subparsers.add_parser("full-scan", help="Run a deterministic static full scan")
+    scan_parser.add_argument("--repo", "-r", default=".", help="Repository root directory")
+    scan_parser.add_argument("--mode", choices=["strict", "fast", "diff", "regression", "ci", "boundary-only"], default="strict")
+    scan_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -145,6 +150,13 @@ def main():
             manifest.errors.append(f"Terminal command exited with code {exit_code}.")
             print(f"Ажил алдаатай дууслаа (code {exit_code}). Log хадгалагдсан.")
         checkpoint_mgr.save_checkpoint(manifest)
+
+    elif args.command == "full-scan":
+        from src.full_scan import render, scan
+        findings = scan(args.repo, args.mode)
+        print(render(findings, root=args.repo, mode=args.mode, json_output=args.json))
+        if args.mode == "ci" and findings:
+            sys.exit(1)
 
     elif args.command == "run":
         # Provider adapters are optional for local/offline commands. Import the

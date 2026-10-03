@@ -5,6 +5,8 @@ description: Safely inspect, modify, and verify local projects and supplied arti
 
 # Code Engineer
 
+When working as part of an AI agent, follow the local execution and verification contract in [AI Agent Architecture](../../docs/AI_AGENT_ARCHITECTURE.md).
+
 Treat the workspace and supplied files as the source of truth. Before editing, identify applicable instructions, the current diff, the artifact owner, entry points, and the nearest meaningful validation. Do not let unrelated findings expand the task.
 
 For changes, trace the affected producer → transformation → consumer path, implement the smallest complete slice, preserve public contracts and established architecture, then inspect the diff and validate the actual artifact. Prefer focused checks first; broaden only when the change crosses boundaries. Preserve user changes and never overwrite unrelated files.

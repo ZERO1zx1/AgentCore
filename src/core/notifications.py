@@ -166,9 +166,11 @@ class GitManager:
         
         # Create commit message with budget info
         timestamp = datetime.now(timezone.utc).isoformat()
+        used = Decimal(str(budget_info.get("used", 0)))
+        initial = Decimal(str(budget_info.get("initial", 0)))
         commit_msg = (
             f"[AgentCore] Budget {budget_state} - Task: {task_id}\n\n"
-            f"Budget: {budget_info.get('used', 0):.2f}/{budget_info.get('initial', 0):.2f} {budget_info.get('unit', 'USD')}\n"
+            f"Budget: {used:.2f}/{initial:.2f} {budget_info.get('unit', 'USD')}\n"
             f"State: {budget_state}\n"
             f"Timestamp: {timestamp}\n"
             f"Auto-commit on budget exhaustion"
@@ -317,12 +319,16 @@ class NotificationManager:
         manifest: Optional[Dict[str, Any]] = None
     ) -> str:
         """Format budget exhaustion message."""
+        used = Decimal(str(budget_info.get("used", 0)))
+        initial = Decimal(str(budget_info.get("initial", 0)))
+        remaining = Decimal(str(budget_info.get("remaining", 0)))
+        reserved = Decimal(str(budget_info.get("reserved", 0)))
         lines = [
             f"Task ID: {task_id}",
             f"Budget State: {budget_state}",
-            f"Budget Used: {budget_info.get('used', 0):.2f} / {budget_info.get('initial', 0):.2f} {budget_info.get('unit', 'USD')}",
-            f"Remaining: {budget_info.get('remaining', 0):.2f} {budget_info.get('unit', 'USD')}",
-            f"Reserved (Emergency): {budget_info.get('reserved', 0):.2f} {budget_info.get('unit', 'USD')}",
+            f"Budget Used: {used:.2f} / {initial:.2f} {budget_info.get('unit', 'USD')}",
+            f"Remaining: {remaining:.2f} {budget_info.get('unit', 'USD')}",
+            f"Reserved (Emergency): {reserved:.2f} {budget_info.get('unit', 'USD')}",
             f"Execution Mode: {budget_info.get('execution_mode', 'AUTO')}",
         ]
         

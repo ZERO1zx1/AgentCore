@@ -34,11 +34,11 @@ class TaskManifest:
         }
         self.budget_info = {
             "schema_version": self.SCHEMA_VERSION,
-            "initial": float(initial_budget),
-            "used": 0.0,
-            "remaining": float(initial_budget),
-            "reserved": float(Decimal(str(initial_budget)) * Decimal("0.15")),
-            "reserve_ratio": 0.15,
+            "initial": str(Decimal(str(initial_budget))),
+            "used": "0",
+            "remaining": str(Decimal(str(initial_budget))),
+            "reserved": str(Decimal(str(initial_budget)) * Decimal("0.15")),
+            "reserve_ratio": "0.15",
             "unit": budget_unit,
             "state": "NORMAL"
         }
@@ -105,7 +105,9 @@ class TaskManifest:
     def save(self, filepath: str):
         os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+            # Decimal values may appear in usage history and nested context;
+            # serialize them as exact strings instead of lossy floats.
+            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False, default=str)
 
     @classmethod
     def load(cls, filepath: str) -> "TaskManifest":

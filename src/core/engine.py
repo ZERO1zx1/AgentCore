@@ -191,7 +191,7 @@ class AgentCoreEngine:
         self._invalidate_changed_sources()
 
         # Recalculate remaining budget for resumed task (use provided budget if higher)
-        if task_input.budget > manifest.budget_info.get("initial", 0):
+        if Decimal(str(task_input.budget)) > Decimal(str(manifest.budget_info.get("initial", 0))):
             self.budget_manager.initial_budget = Decimal(str(task_input.budget))
             manifest.budget_info["initial"] = float(self.budget_manager.initial_budget)
 
@@ -453,7 +453,7 @@ class AgentCoreEngine:
         # Cost accounting: separate estimate from actual
         actual_cost = exec_result.metadata.get("actual_cost")
         cost_source = "provider" if actual_cost is not None else "estimate"
-        charged_cost = float(actual_cost) if actual_cost is not None else float(est_cost)
+        charged_cost = Decimal(str(actual_cost)) if actual_cost is not None else Decimal(str(est_cost))
         self.route_health.record(
             model.model_id,
             model.capabilities,
@@ -469,7 +469,7 @@ class AgentCoreEngine:
             "provider": exec_result.provider or model.provider,
             "model_id": exec_result.model_id or model.model_id,
             "estimated_cost": float(est_cost),
-            "charged_cost": charged_cost,
+            "charged_cost": float(charged_cost),
             "actual_cost": float(actual_cost) if actual_cost is not None else None,
             "cost_source": cost_source,
             "input_tokens": usage.get("input_tokens", 0),
@@ -490,7 +490,7 @@ class AgentCoreEngine:
                 "provider": exec_result.provider,
                 "model_id": exec_result.model_id,
                 "estimated_cost": float(est_cost),
-                "charged_cost": charged_cost,
+                "charged_cost": float(charged_cost),
                 "actual_cost": float(actual_cost) if actual_cost is not None else None,
                 "cost_source": cost_source,
                 "input_tokens": usage.get("input_tokens", 0),
@@ -537,7 +537,7 @@ class AgentCoreEngine:
             "provider": exec_result.provider,
             "model_id": exec_result.model_id,
             "estimated_cost": float(est_cost),
-            "charged_cost": charged_cost,
+            "charged_cost": float(charged_cost),
             "actual_cost": float(actual_cost) if actual_cost is not None else None,
             "cost_source": cost_source,
             "input_tokens": usage.get("input_tokens", 0),

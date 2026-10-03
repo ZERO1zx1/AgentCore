@@ -6,4 +6,11 @@ Command-line interface. Run with `python -m src.cli`.
 - `__main__.py` — entry point for `python -m src.cli`.
 - `__init__.py` — package exports.
 
-Commands: `run`, `list`, `resume`, `mcp`, `skill`, `observe`.
+Commands: `run`, `list`, `resume`, `mcp`, `skill`, `observe`, `full-scan`.
+
+`full-scan` performs deterministic static triage and prints file/line findings:
+
+```bash
+python -m src.cli full-scan --repo .
+python -m src.cli full-scan --repo . --mode ci --json
+```
