@@ -1,22 +1,55 @@
 # AgentCore
 
-AgentCore is a provider-agnostic, budget-aware execution engine for repositories, text, data, PDFs, and verified media attachments. It plans dependency-aware work units, routes them by capability, records costs with `Decimal`, persists artifacts, and resumes from a task manifest.
+AgentCore is a **hybrid Python/TypeScript AI agent execution engine** with a clean separation between the TypeScript assistant layer and the Python execution engine. It provides provider-agnostic, budget-aware execution for repositories, text, data, PDFs, and verified media attachments.
 
-> The bundled model registry and `FakeExecutor` are offline demonstrations. They do not call a provider. Real execution requires your own `OperationExecutor` adapter.
+## Architecture
 
-## Start here
+```text
+User / OpenCode / Web Client
+          |
+          v
+TypeScript Assistant Layer (packages/agentcore-assistant)
+ ├── Agent loop
+ ├── Tool registry (packages/agentcore-types)
+ ├── MCP server/client (packages/agentcore-mcp)
+ ├── Zod schema validation
+ ├── Permission and approval policy
+ ├── Streaming events
+ ├── Session/context adapter
+ └── Python bridge client (stdio transport)
+          |
+          v
+Python AgentCore Engine (src/)
+ ├── InputRouter
+ ├── Planner / Scheduler
+ ├── ModelRouter
+ ├── BudgetManager
+ ├── CheckpointManager
+ ├── Memory
+ ├── OperationExecutor
+ └── Artifact/report manager
+```
 
-AgentCore requires Python 3.10+. Install the test dependencies and run the suite:
+## Key Features
+
+- **Provider-agnostic**: Swap LLM providers (OpenAI, Anthropic, Gemini, Ollama) via `OperationExecutor` adapter
+- **Budget-aware**: Decimal-only money, 15% reserve, preflight checks, provider-confirmed costs
+- **Resumable**: Checkpoint/resume with granular source invalidation (schema 3.0)
+- **Secure by default**: Path allowlists, secret redaction, prompt injection detection, human approval
+- **MCP integration**: Standard MCP server for IDE/client integration
+- **Streaming events**: Real-time observability via structured event stream
+
+## Quick Start
+
+### Python Engine Only
 
 ```bash
 python -m venv .venv
-# Windows: .venv\\Scripts\\Activate.ps1
+# Windows: .venv\Scripts\Activate.ps1
 # macOS/Linux: source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 python -m pytest tests -v
 ```
-
-`pypdf` is the runtime PDF dependency. If unavailable, a PDF task is persisted as `BLOCKED` with `DEPENDENCY_UNAVAILABLE`; AgentCore does not return placeholder extraction.
 
 ```python
 from src.core.engine import AgentCoreEngine
@@ -31,21 +64,49 @@ engine.initialize_task(TaskInput(
 print(engine.run_to_completion())
 ```
 
-The demo writes to `.agentcore/tasks/demo/` and `.agentcore/checkpoints/`; its usage is illustrative, not a bill.
+### Full Hybrid Stack (TypeScript + Python)
 
-## Architecture
+```bash
+# Python dependencies
+python -m venv .venv
+.venv\Scripts\Activate.ps1  # Windows
+python -m pip install -r requirements-dev.txt
 
-```text
-TaskInput -> InputRouter -> TaskContext -> AdaptiveOrchestrator
-          -> Planner -> WorkUnit graph -> Scheduler -> ModelRouter
-          -> OperationExecutor -> ArtifactManager / CheckpointManager -> report
-                              ^
-                         BudgetManager
+# TypeScript dependencies
+npm ci --prefix packages/agentcore-types
+npm ci --prefix packages/agentcore-assistant
+npm ci --prefix packages/agentcore-mcp
+
+# Run TypeScript agent
+node packages/agentcore-assistant/dist/agent.js
 ```
 
-The public operating policies are [code-engineer](skills/code-engineer/SKILL.md) and [credit-safe-agent](skills/credit-safe-agent/SKILL.md). They provide evidence-based local artifact work, focused validation, resumable execution, cost tracking, and budget-safe routing.
+```typescript
+import { createAgent } from "@agentcore/assistant";
 
-## Modes and budget safety
+const agent = createAgent({
+  budgetLimits: { maxTotalCost: "10.0" },
+  security: { allowedPaths: ["."] },
+});
+
+const manifest = await agent.runTask({
+  prompt: "Analyze this repository",
+  taskId: "demo",
+  budget: "10.0",
+  repository: ".",
+});
+```
+
+### MCP Server
+
+```bash
+# Start MCP server
+node packages/agentcore-mcp/dist/index.js
+```
+
+Then configure your MCP client (e.g., VS Code, Cursor) to connect.
+
+## Modes and Budget Safety
 
 | Mode | Intent |
 | --- | --- |
@@ -53,21 +114,58 @@ The public operating policies are [code-engineer](skills/code-engineer/SKILL.md)
 | `FULL` | Prefers stronger coding routes while the budget allows. |
 | `CREDIT_SAFE` | Prefers the lowest capable route and drops optional work early. |
 
-The engine reserves 15% of the initial budget by default. It distinguishes `estimated_cost`, `charged_cost`, `actual_cost`, and `cost_source`; only adapter-supplied cost can be provider-confirmed. [Budget policy](references/budget-policy.md) and [execution modes](references/execution-modes.md) describe the exact behavior.
+The engine reserves 15% of the initial budget by default. It distinguishes `estimated_cost`, `charged_cost`, `actual_cost`, and `cost_source`; only adapter-supplied cost can be provider-confirmed. See [Budget policy](references/budget-policy.md) and [execution modes](references/execution-modes.md).
 
-## Provider adapters and inputs
+## Provider Adapters
 
-Implement `OperationExecutor.execute(unit_type, model_id, prompt, context)` and return `ExecutionResult`. Register accurate production `ModelSpec` values in an injected `ModelRegistry`. The engine delivers media as verified path descriptors in `context["attachments"]` (path, MIME type, modality, byte size, SHA-256); adapters convert them to their provider format. Binary/base64 content is never appended to prompts.
+Implement `OperationExecutor.execute(unit_type, model_id, prompt, context)` and return `ExecutionResult`. Register accurate production `ModelSpec` values in an injected `ModelRegistry`. Media delivered as verified path descriptors in `context["attachments"]` (path, MIME, modality, size, SHA-256). Binary/base64 content never appended to prompts.
 
-Repositories, text, JSON/CSV, and PDFs receive built-in routing. Images, audio, video, and office files receive metadata/path routing; semantic processing requires a capable adapter. Read [checkpointing](references/checkpointing.md), [model routing](references/model-routing.md), and the [output contract](references/output-contract.md) before integrating production execution.
+Built-in adapters:
+- `FakeExecutor` - Offline demo, deterministic
+- `MultiProviderExecutor` - OpenAI, Anthropic, Gemini, Ollama
 
-### Private local artifacts (Windows)
+## Security
 
-Set `RuntimeConfig(private_artifacts=True)` to use one private task directory: `context/` stores persisted inputs, `artifacts/` stores generated outputs, and `checkpoints/` stores that task's manifest. On Windows, AgentCore removes inherited ACL entries and grants Full Control to the current Windows identity plus the operating system's `SYSTEM` account. On macOS and Linux, it applies owner-only `0700` permissions. Unsupported platforms, or failed permission changes, fail closed. This does not encrypt data, defeat a Windows administrator who takes ownership, or grant access to another person's device.
+- **Path allowlists/blocklists** - Repository root boundary enforced
+- **Secret redaction** - API keys, tokens automatically redacted from logs
+- **Prompt injection detection** - Pattern-based injection prevention
+- **Human approval** - Required for write, external, dangerous operations
+- **Audit logging** - Correlation IDs, permission decisions tracked
+- **Untrusted output marking** - Tool outputs marked for safe handling
 
-## Development and security
+See [Tool Security](docs/TOOL_SECURITY.md) for details.
 
-Read [AGENTS.md](AGENTS.md) before changing the project. Keep provider keys and notification secrets out of source, manifests, logs, and local memory. Do not authorize purchases or automatically stage unrelated changes during recovery. The low-cost code in [feat/low_cost_skill](feat/low_cost_skill/README.md) is a separate proof of concept, not engine wiring.
+## Development
+
+```bash
+# Python tests
+$env:TEMP=".test-temp"; $env:TMP=".test-temp"
+python -m pytest tests -v
+
+# TypeScript build
+npm run build --prefix packages/agentcore-types
+npm run build --prefix packages/agentcore-assistant
+npm run build --prefix packages/agentcore-mcp
+
+# Full validation (CI)
+python -m pytest tests -v
+python -m pytest feat/low_cost_skill/tests -v
+python -W error::ResourceWarning -m pytest plugin/ -v
+python -m compileall src plugin feat examples/backend
+
+npm run typecheck --prefix packages/agentcore-types
+npm run typecheck --prefix packages/agentcore-assistant
+npm run typecheck --prefix packages/agentcore-mcp
+```
+
+See [Development Guide](docs/DEVELOPMENT.md) for details.
+
+## Documentation
+
+- [Hybrid Architecture](docs/HYBRID_ARCHITECTURE.md) - Architecture overview
+- [Tool Security](docs/TOOL_SECURITY.md) - Security controls
+- [Development Guide](docs/DEVELOPMENT.md) - Contributing guide
+- [References](references/) - Budget, checkpointing, model routing, execution modes
 
 ## License
 

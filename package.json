@@ -1,0 +1,24 @@
+{
+  "name": "agentcore",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentCore - Hybrid Python/TypeScript AI Agent Execution Engine",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "install:all": "npm ci --workspaces --if-present",
+    "build:all": "npm run build --workspaces --if-present",
+    "test:all": "npm run test --workspaces --if-present",
+    "typecheck:all": "npm run typecheck --workspaces --if-present",
+    "lint:all": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "tsx": "^4.16.0"
+  },
+  "engines": {
+    "node": ">=20.17"
+  },
+  "packageManager": "npm@10.8.2"
+}

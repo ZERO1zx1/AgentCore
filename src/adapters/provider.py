@@ -9,9 +9,12 @@ import os
 import time
 import json
 import httpx
+import logging
 
 from src.core.executor import OperationExecutor
 from src.core.execution_result import ExecutionResult
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderConfigurationError(ValueError):
@@ -82,26 +85,41 @@ class MultiProviderExecutor(OperationExecutor):
             return result
 
         except httpx.TimeoutException as exc:
-            return self._error_result(provider, model_id, start_time, "timeout", exc)
+            return self._error_result(provider, model_id, start_time, "timeout", exc, transient=True)
         except httpx.HTTPStatusError as exc:
-            return self._error_result(provider, model_id, start_time, "http_status", exc)
+            transient = 500 <= exc.response.status_code < 600
+            return self._error_result(provider, model_id, start_time, "http_status", exc, transient=transient)
         except httpx.RequestError as exc:
-            return self._error_result(provider, model_id, start_time, "network", exc)
+            return self._error_result(provider, model_id, start_time, "network", exc, transient=True)
         except ProviderConfigurationError as exc:
-            return self._error_result(provider, model_id, start_time, "configuration", exc)
+            return self._error_result(provider, model_id, start_time, "configuration", exc, transient=False)
         except (ValueError, KeyError, TypeError) as exc:
-            return self._error_result(provider, model_id, start_time, "response", exc)
+            return self._error_result(provider, model_id, start_time, "response", exc, transient=False)
         except Exception as exc:
-            return self._error_result(provider, model_id, start_time, "unexpected", exc)
+            logger.exception("Unexpected error in MultiProviderExecutor for provider=%s model=%s", provider, model_id)
+            return self._error_result(provider, model_id, start_time, "unexpected", exc, transient=False)
 
-    def _error_result(self, provider: str, model_id: str, start_time: float, error_type: str, exc: Exception) -> ExecutionResult:
+    def _error_result(
+        self,
+        provider: str,
+        model_id: str,
+        start_time: float,
+        error_type: str,
+        exc: Exception,
+        transient: bool = False,
+    ) -> ExecutionResult:
         latency_ms = int((time.perf_counter() - start_time) * 1000)
+        error_class = "transient" if transient else "permanent"
+        logger.warning(
+            "Provider execution failed: provider=%s model=%s error_type=%s error_class=%s message=%s",
+            provider, model_id, error_type, error_class, str(exc)
+        )
         return ExecutionResult(
             success=False,
             error=f"{provider.upper()} {error_type} error: {str(exc)}",
             provider=provider,
             model_id=model_id,
-            metadata={"latency_ms": latency_ms, "error_type": error_type},
+            metadata={"latency_ms": latency_ms, "error_type": error_type, "error_class": error_class},
             usage={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
         )
 

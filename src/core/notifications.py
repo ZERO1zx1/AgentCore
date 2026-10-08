@@ -123,8 +123,8 @@ class GitManager:
         
         return fallback_file
     
-    def push_checkpoint(self, task_id: str, budget_state: str, budget_info: Dict[str, Any], checkpoint_path: Optional[str] = None) -> Dict[str, Any]:
-        """Push checkpoint with budget exhaustion info. Fully automated with fallback."""
+    def push_checkpoint(self, task_id: str, budget_state: str, budget_info: Dict[str, Any], checkpoint_path: Optional[str] = None, auto_push: bool = False) -> Dict[str, Any]:
+        """Push checkpoint with budget exhaustion info. Auto-push disabled by default."""
         result = {
             "success": False,
             "steps": [],
@@ -192,17 +192,21 @@ class GitManager:
             result["steps"].append(f"fallback saved: {fallback_file}")
             return result
         
-        # Push to remote
-        if self.push():
-            result["steps"].append("git push: OK")
-            result["success"] = True
+        # Push to remote (only if auto_push enabled)
+        if auto_push:
+            if self.push():
+                result["steps"].append("git push: OK")
+                result["success"] = True
+            else:
+                result["error"] = "Failed to push to remote"
+                result["steps"].append("git push: FAILED")
+                # Save to fallback
+                fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
+                result["fallback_file"] = fallback_file
+                result["steps"].append(f"fallback saved: {fallback_file}")
         else:
-            result["error"] = "Failed to push to remote"
-            result["steps"].append("git push: FAILED")
-            # Save to fallback
-            fallback_file = self._save_fallback(task_id, budget_state, budget_info, commit_msg)
-            result["fallback_file"] = fallback_file
-            result["steps"].append(f"fallback saved: {fallback_file}")
+            result["steps"].append("git push: SKIPPED (auto_push=False)")
+            result["success"] = True
         
         return result
     

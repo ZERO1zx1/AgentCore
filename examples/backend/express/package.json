@@ -9,7 +9,7 @@
     "test": "node --test usage_proxy.test.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
+    "express": "^4.22.0",
     "node-fetch": "^2.7.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1"

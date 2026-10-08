@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
+const { once } = require('node:events');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 const { initDb, migrateDb, applyCharge, buildApp } = require('./usage_proxy.js');
@@ -97,12 +98,15 @@ test('GET /balance is read-only (no provider call)', async () => {
   const { db, dbPath } = await freshDb();
   await db.run("INSERT INTO projects (id,name,credit_balance) VALUES ('p1','d','5.0')");
   const app = buildApp(db);
-  const server = app.listen(0);
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
   const { port } = server.address();
   const res = await fetch(`http://127.0.0.1:${port}/api/projects/p1/balance`);
   const j = await res.json();
   assert.strictEqual(j.balance, '5.0');
-  server.close();
+  await new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
   await db.close();
   fs.unlinkSync(dbPath);
 });

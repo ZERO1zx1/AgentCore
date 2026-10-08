@@ -1,0 +1,34 @@
+{
+  "name": "@agentcore/assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript Assistant Layer for AgentCore - Agent loop, tool registry, approval, session management",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@agentcore/types": "file:../agentcore-types",
+    "zod": "^3.23.0",
+    "uuid": "^10.0.0",
+    "eventemitter3": "^5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0"
+  }
+}

@@ -337,12 +337,13 @@ class AgentCoreEngine:
         self._persist_context_to_manifest(self.current_manifest)
         checkpoint_path = self.checkpoint_manager.save_checkpoint(self.current_manifest)
         
-        # Push checkpoint to git
+        # Push checkpoint to git (auto_push=False by default)
         git_result = self.git_manager.push_checkpoint(
             task_id=self.current_manifest.task_id,
             budget_state=budget_state.value,
             budget_info=self.budget_manager.to_dict(),
             checkpoint_path=checkpoint_path,
+            auto_push=False,
         )
         if git_result["success"]:
             self.current_manifest.errors.append(f"Git push: {', '.join(git_result['steps'])}")

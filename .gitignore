@@ -36,6 +36,7 @@ credit_demo.db
 examples/frontend/node_modules/
 examples/frontend/dist/
 examples/frontend/.vite/
+packages/*/dist/
 node_modules/
 
 # Python / frontend test & build caches
