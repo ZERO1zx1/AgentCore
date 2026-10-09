@@ -36,6 +36,30 @@ Every actionable finding must include the folder, file, and one-based line numbe
 9. Re-run affected tests, inspect the diff, and report exact validation results. Separate code failures from environment, permission, credential, and remote dependency failures.
 10. Keep the agent loop visible in UX: show current phase, selected tool, scope/file, validation state, and next action when available.
 
+11. Keep scan artifacts organized. The canonical output layout is:
+
+    ```text
+    docs/YYYY-MM-DD/
+      README.md
+      audit/
+      dependencies/
+      frontend/
+      backend/
+      database/
+      reports/<mode>/
+        report.md       # human-readable report
+        report.json     # machine-readable report
+      scripts/
+    ```
+
+    Do not create date-stamped report files in the repository root or mix
+    human reports, probe output, dependency inventories, and SQL results in
+    one flat directory. If a companion probe is required, place it under the
+    same date directory using a clear subdirectory such as
+    `probes/`, `dependencies/`, or `database/`. Re-running the same mode on
+    the same date updates its two canonical reports instead of creating
+    duplicate files.
+
 ## Required report fields
 
 For each finding use this UX-readable schema:

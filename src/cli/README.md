@@ -14,3 +14,8 @@ Commands: `run`, `list`, `resume`, `mcp`, `skill`, `observe`, `full-scan`.
 python -m src.cli full-scan --repo .
 python -m src.cli full-scan --repo . --mode ci --json
 ```
+
+Reports are also saved automatically under
+`docs/YYYY-MM-DD/reports/<mode>/report.md` and `report.json`, with a date-level
+`README.md` describing the folder layout. Use `--output-dir PATH` to choose
+another documentation root.

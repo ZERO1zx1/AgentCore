@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 import json
 import re
+from datetime import datetime
 from typing import Iterable
 
 
@@ -102,3 +103,37 @@ def render(findings: list[Finding], *, root: str, mode: str, json_output: bool =
     for index, item in enumerate(findings, 1):
         lines.extend([f"### [{index}] {item.title}", f"- Location: {item.location}", f"- Severity: {item.severity}", f"- Class: {item.finding_class}", f"- Root Cause proven: {item.root_cause_proven}", f"- Root Cause hypoth.: {item.root_cause_hypothesis}", f"- Confidence: {item.confidence:.2f}", f"- Impact: {item.impact}", f"- Reproduce: {item.reproduce}", f"- Fix: {item.fix}", f"- Re-validate: {item.revalidate}", f"- Expected / Actual: {item.expected} / {item.actual}", f"- Status: {item.status}", f"- Proposed by: {item.proposed_by}", f"- Confirmed by: {item.confirmed_by}", f"- Evidence: {item.evidence}", f"- Boundary Note: {item.boundary_note}", ""])
     return "\n".join(lines)
+
+
+def write_report_bundle(
+    findings: list[Finding],
+    *,
+    root: str,
+    mode: str,
+    output_dir: str | Path | None = None,
+    now: datetime | None = None,
+) -> tuple[Path, Path]:
+    """Write one stable, organized human/CI report pair for a scan run."""
+    timestamp = now or datetime.now()
+    base = Path(output_dir) if output_dir else Path(root) / "docs"
+    report_dir = base / timestamp.strftime("%Y-%m-%d") / "reports" / mode
+    report_dir.mkdir(parents=True, exist_ok=True)
+    date_dir = report_dir.parent.parent
+    readme_path = date_dir / "README.md"
+    if not readme_path.exists():
+        readme_path.write_text(
+            f"# Full-scan artifacts — {timestamp:%Y-%m-%d}\n\n"
+            "This folder contains the artifacts for one scan date.\n\n"
+            "- `reports/` — human-readable and machine-readable scan results\n"
+            "- `dependencies/` — dependency and advisory checks\n"
+            "- `frontend/` — frontend probes and build checks\n"
+            "- `backend/` — backend tests and runtime checks\n"
+            "- `database/` — SQL probes and regression results\n"
+            "- `scripts/` — scripts used to produce these artifacts\n",
+            encoding="utf-8",
+        )
+    markdown_path = report_dir / "report.md"
+    json_path = report_dir / "report.json"
+    markdown_path.write_text(render(findings, root=root, mode=mode), encoding="utf-8")
+    json_path.write_text(render(findings, root=root, mode=mode, json_output=True), encoding="utf-8")
+    return markdown_path, json_path

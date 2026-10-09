@@ -60,6 +60,7 @@ def main():
     scan_parser.add_argument("--repo", "-r", default=".", help="Repository root directory")
     scan_parser.add_argument("--mode", choices=["strict", "fast", "diff", "regression", "ci", "boundary-only"], default="strict")
     scan_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    scan_parser.add_argument("--output-dir", help="Report root; defaults to .agentcore/reports/full-scan")
 
     args = parser.parse_args()
 
@@ -152,9 +153,13 @@ def main():
         checkpoint_mgr.save_checkpoint(manifest)
 
     elif args.command == "full-scan":
-        from src.full_scan import render, scan
+        from src.full_scan import render, scan, write_report_bundle
         findings = scan(args.repo, args.mode)
+        report_path, json_path = write_report_bundle(
+            findings, root=args.repo, mode=args.mode, output_dir=args.output_dir
+        )
         print(render(findings, root=args.repo, mode=args.mode, json_output=args.json))
+        print(f"\nReports saved:\n- {report_path}\n- {json_path}")
         if args.mode == "ci" and findings:
             sys.exit(1)
 
