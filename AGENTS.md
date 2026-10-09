@@ -4,7 +4,7 @@ Provider-agnostic, budget-aware execution engine. Read `README.md` plus `referen
 
 ## Setup and validation
 
-Requires Python 3.10+ (CI uses 3.11):
+Requires Python 3.13.15 for the supported local and CI environment:
 
 ```bash
 python -m pip install -r requirements-dev.txt

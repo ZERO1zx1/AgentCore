@@ -5,6 +5,25 @@ description: Perform a broad repository or project scan with code-engineer, prod
 
 # Full Scan
 
+## Deep research handoff
+
+Use `python -m src.cli full-scan --repo . --deep-research` to collect a local
+research plan, dependency declarations, duplicate candidates and observed import
+architecture. Explain the proposed source scope and request cap before expanding
+to external research; prior explicit authorization for that scope is sufficient.
+With authorization, add `--approve-research --request-limit 20`.
+See [implemented collector scope](../../docs/DEEP_RESEARCH_SCAN.md).
+
+For agent-led deep analysis, read the identified upstream source at its recorded
+commit, official release/migration/security documentation, and relevant issue
+discussions. Reddit is an optional lead, never sufficient proof of a technical
+claim. Separate collected facts, hypotheses, conflicting sources and unknowns.
+Record source URL, check date, local path/line and required regression validation.
+Review misplaced/duplicate code against module ownership and import impact before
+proposing moves. Show observed and proposed architecture separately in black and
+white with a legend. Never label the collector itself as provider-backed AI
+research or invent tokens/cost. Preserve approval scope and budget reserve.
+
 For the broader agent loop, tool contract, verifier, and observability policy, read [AI Agent Architecture](../../docs/AI_AGENT_ARCHITECTURE.md).
 
 Use this skill with `code-engineer` when the user asks for a full scan, complete audit, broad check, or “what is wrong and how do I run it?”. `full-scan` supplies triage/reporting; `code-engineer` supplies safe implementation and artifact validation.

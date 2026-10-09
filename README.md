@@ -162,6 +162,19 @@ See [Development Guide](docs/DEVELOPMENT.md) for details.
 
 ## Documentation
 
+### Deep Research Scan
+
+```bash
+python -m src.cli full-scan --repo . --deep-research
+python -m src.cli deep-scan --repo . --approve-research --package pypdf --request-limit 20
+```
+
+Collect local static/import/duplicate evidence, then approved public GitHub,
+PyPI and OSV evidence with explicit request limits. Reports include HTML,
+Markdown, JSON and black/white architecture diagrams. See
+[implemented scope and boundaries](docs/DEEP_RESEARCH_SCAN.md) and the
+[deep-research agent workflow](skills/deep-research-scan/SKILL.md).
+
 - [Hybrid Architecture](docs/HYBRID_ARCHITECTURE.md) - Architecture overview
 - [Tool Security](docs/TOOL_SECURITY.md) - Security controls
 - [Development Guide](docs/DEVELOPMENT.md) - Contributing guide

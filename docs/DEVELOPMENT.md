@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- Python 3.10+ (CI uses 3.11)
+- Python 3.13.15
 - Node.js 20.17+
 - npm 10.8+
 

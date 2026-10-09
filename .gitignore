@@ -49,6 +49,7 @@ node_modules/
 .agentcore-test-venv314/
 
 .test-tmp/
+.test-temp/
 
 .test_private_artifacts/
 

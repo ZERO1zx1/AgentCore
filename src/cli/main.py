@@ -60,7 +60,19 @@ def main():
     scan_parser.add_argument("--repo", "-r", default=".", help="Repository root directory")
     scan_parser.add_argument("--mode", choices=["strict", "fast", "diff", "regression", "ci", "boundary-only"], default="strict")
     scan_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
-    scan_parser.add_argument("--output-dir", help="Report root; defaults to .agentcore/reports/full-scan")
+    scan_parser.add_argument("--output-dir", help="Report root; defaults to docs/YYYY-MM-DD/reports")
+    scan_parser.add_argument("--deep-research", action="store_true", help="Collect a deep-research plan and architecture")
+    scan_parser.add_argument("--approve-research", action="store_true", help="Authorize bounded public network research")
+    scan_parser.add_argument("--request-limit", type=int, default=20, help="Maximum external requests (1-200)")
+    scan_parser.add_argument("--package", action="append", help="Limit external dependency research to this package; repeatable")
+
+    research_parser = subparsers.add_parser("deep-scan", help="Collect local and approved primary-source research evidence")
+    research_parser.add_argument("--repo", "-r", default=".")
+    research_parser.add_argument("--approve-research", action="store_true")
+    research_parser.add_argument("--request-limit", type=int, default=20)
+    research_parser.add_argument("--output-dir")
+    research_parser.add_argument("--json", action="store_true")
+    research_parser.add_argument("--package", action="append")
 
     args = parser.parse_args()
 
@@ -152,6 +164,20 @@ def main():
             print(f"Ажил алдаатай дууслаа (code {exit_code}). Log хадгалагдсан.")
         checkpoint_mgr.save_checkpoint(manifest)
 
+    elif args.command == "deep-scan" or (args.command == "full-scan" and args.deep_research):
+        from src.deep_scan import research, markdown, write_bundle
+        if args.command == "full-scan" and args.mode not in {"strict", "ci"}:
+            parser.error("deep research supports strict and ci modes; use full-scan without --deep-research for other modes")
+        try:
+            report = research(args.repo, approved=args.approve_research, request_limit=args.request_limit, packages=args.package)
+        except ValueError as exc:
+            parser.error(str(exc))
+        directory = write_bundle(report, args.output_dir)
+        print(json.dumps(report, ensure_ascii=False, indent=2) if args.json else markdown(report))
+        print(f"Reports saved: {directory}", file=sys.stderr)
+        if args.command == "full-scan" and args.mode == "ci" and (report["findings"] or report["status"] == "PARTIAL"):
+            sys.exit(1)
+
     elif args.command == "full-scan":
         from src.full_scan import render, scan, write_report_bundle
         findings = scan(args.repo, args.mode)
@@ -159,7 +185,7 @@ def main():
             findings, root=args.repo, mode=args.mode, output_dir=args.output_dir
         )
         print(render(findings, root=args.repo, mode=args.mode, json_output=args.json))
-        print(f"\nReports saved:\n- {report_path}\n- {json_path}")
+        print(f"\nReports saved:\n- {report_path}\n- {json_path}", file=sys.stderr)
         if args.mode == "ci" and findings:
             sys.exit(1)
 

@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 import json
 import re
+import os
 from datetime import datetime
 from typing import Iterable
 
@@ -35,12 +36,23 @@ class Finding:
     boundary_note: str = ""
 
 
-_SKIP_DIRS = {".git", ".venv", "__pycache__", "node_modules", ".agentcore", ".pytest_cache"}
+_SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", "node_modules", ".agentcore", ".pytest_cache", ".test-temp", ".agent-memory", "dist", "build"}
 _SECRET_RE = re.compile(r"(?i)(api[_-]?key|password|secret|access[_-]?token)\s*[:=]\s*['\"][^'\"]+['\"]")
 
 
 def _files(root: Path, mode: str) -> Iterable[Path]:
-    paths = (p for p in root.rglob("*") if p.is_file() and not any(part in _SKIP_DIRS for part in p.parts))
+    def walk():
+        for directory, dirs, names in os.walk(root, followlinks=False):
+            dirs[:] = sorted(name for name in dirs if name not in _SKIP_DIRS and not (Path(directory) / name).is_symlink())
+            for name in sorted(names):
+                path = Path(directory) / name
+                if path.is_symlink() or not path.is_file():
+                    continue
+                relative = path.relative_to(root).parts
+                if len(relative) > 2 and relative[0] == "docs" and re.fullmatch(r"\d{4}-\d{2}-\d{2}", relative[1]):
+                    continue
+                yield path
+    paths = walk()
     if mode == "diff":
         # Diff filtering is intentionally conservative: callers can pass a
         # pre-filtered root when they need exact changed-file scope.
@@ -55,6 +67,8 @@ def scan(root: str | Path = ".", mode: str = "strict") -> list[Finding]:
         if path.suffix.lower() not in {".py", ".js", ".ts", ".tsx", ".json", ".yml", ".yaml", ".toml", ".md"}:
             continue
         try:
+            if path.stat().st_size > 2_000_000:
+                continue
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
             continue
@@ -68,7 +82,7 @@ def scan(root: str | Path = ".", mode: str = "strict") -> list[Finding]:
                     f"rg -n -i 'api[_-]?key|password|secret|token' {rel}",
                     "Move the value to environment/secret storage and rotate any real credential.",
                     f"rg -n -i 'api[_-]?key|password|secret|token' {rel}",
-                    "No credential-like literal", line.strip(), boundary_note="Secret validity requires external credential review.",
+                    "No credential-like literal", "[REDACTED credential-like assignment]", boundary_note="Secret validity requires external credential review.",
                 ))
             if re.search(r"except\s+(Exception|BaseException)\s*:", line):
                 findings.append(Finding(
